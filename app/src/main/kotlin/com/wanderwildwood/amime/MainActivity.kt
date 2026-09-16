@@ -18,6 +18,7 @@ import com.mudita.mmd.ThemeMMD
 import com.wanderwildwood.amime.mesh.Person
 import com.wanderwildwood.amime.ui.ConversationScreen
 import com.wanderwildwood.amime.ui.PeopleScreen
+import com.wanderwildwood.amime.ui.RadiosScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -37,10 +38,13 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
 
     // Both are asked for at once because neither is any use without the other: the app
     // cannot find the radio without SCAN and cannot talk to it without CONNECT.
+    val radios by viewModel.radios.collectAsStateWithLifecycle()
+    val scanning by viewModel.scanning.collectAsStateWithLifecycle()
+
     val ask = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { granted ->
-        if (granted.values.all { it }) viewModel.pairedRadios().firstOrNull()?.let(viewModel::connect)
+        if (granted.values.all { it }) viewModel.findRadios()
     }
 
     LaunchedEffect(Unit) {
@@ -50,7 +54,14 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
     }
 
     val person = open
-    if (person != null) {
+    if (!state.ready && person == null) {
+        RadiosScreen(
+            radios = radios,
+            scanning = scanning,
+            onScan = viewModel::findRadios,
+            onConnect = { viewModel.connect(it.device) },
+        )
+    } else if (person != null) {
         ConversationScreen(
             conversation = state.conversationWith(person.prefix)
                 ?: com.wanderwildwood.amime.mesh.Conversation(person),

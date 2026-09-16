@@ -8,6 +8,7 @@ import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import com.wanderwildwood.amime.ble.BleTransport
 import com.wanderwildwood.amime.ble.NordicUart
+import com.wanderwildwood.amime.ble.RadioScanner
 import com.wanderwildwood.amime.link.Session
 import com.wanderwildwood.amime.mesh.MeshState
 import com.wanderwildwood.amime.mesh.MeshStore
@@ -83,21 +84,61 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
         session = Session(transport, listener)
     }
 
+    private val adapter: BluetoothAdapter?
+        get() = (getApplication<Application>()
+            .getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
+
+    private val scanner by lazy { RadioScanner(adapter) }
+
+    private val _radios = MutableStateFlow<List<Radio>>(emptyList())
+
+    /** Radios to choose from: the ones already paired, then whatever a scan turns up. */
+    val radios: StateFlow<List<Radio>> = _radios.asStateFlow()
+
+    private val _scanning = MutableStateFlow(false)
+    val scanning: StateFlow<Boolean> = _scanning.asStateFlow()
+
+    data class Radio(
+        val device: BluetoothDevice,
+        val name: String,
+        val bonded: Boolean,
+        val rssi: Int? = null,
+    )
+
     /**
-     * Radios this phone has already paired with.
+     * Look for radios.
      *
-     * Bonded devices only, deliberately: scanning is a second permission, a second failure
-     * mode and a list of everything in the room, and the phone has to be bonded to this radio
-     * before it can do anything with it anyway.
+     * Bonded ones are listed first and without waiting, because the usual case is the radio
+     * this phone already knows. The scan is for the first time, and for a radio that has been
+     * reset and forgotten this phone — which looks exactly like a radio that was never here.
      */
-    fun pairedRadios(): List<BluetoothDevice> {
-        val manager = getApplication<Application>()
-            .getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
-        val adapter: BluetoothAdapter = manager?.adapter ?: return emptyList()
-        return runCatching { adapter.bondedDevices.toList() }.getOrDefault(emptyList())
+    fun findRadios() {
+        val bonded = runCatching { adapter?.bondedDevices.orEmpty() }.getOrDefault(emptySet())
+            .filter { it.name?.startsWith(MESHCORE_PREFIX) == true }
+            .map { Radio(it, it.name ?: it.address, bonded = true) }
+        _radios.value = bonded
+
+        _scanning.value = true
+        scanner.start { device, name, rssi ->
+            if (_radios.value.any { it.device.address == device.address }) return@start
+            _radios.value = _radios.value + Radio(
+                device = device,
+                name = name ?: device.address,
+                bonded = device.bondState == BluetoothDevice.BOND_BONDED,
+                rssi = rssi,
+            )
+        }
     }
 
-    fun connect(device: BluetoothDevice) = transport.connect(device)
+    fun stopScanning() {
+        scanner.stop()
+        _scanning.value = false
+    }
+
+    fun connect(device: BluetoothDevice) {
+        stopScanning()
+        transport.connect(device)
+    }
 
     fun send(person: Person, text: String, now: Long = System.currentTimeMillis() / 1000) {
         val prefix = person.prefix.toByteArray()
@@ -110,7 +151,13 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     override fun onCleared() {
+        scanner.stop()
         transport.disconnect()
         super.onCleared()
+    }
+
+    private companion object {
+        /** What the firmware puts in front of a node's name when it advertises. */
+        const val MESHCORE_PREFIX = "MeshCore-"
     }
 }
