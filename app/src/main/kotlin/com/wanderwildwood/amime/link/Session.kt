@@ -1,0 +1,219 @@
+package com.wanderwildwood.amime.link
+
+import com.wanderwildwood.amime.protocol.Commands
+import com.wanderwildwood.amime.protocol.Decoder
+import com.wanderwildwood.amime.protocol.Frame
+import com.wanderwildwood.amime.protocol.Resp
+
+/**
+ * Drives the companion protocol over a [Transport].
+ *
+ * Deliberately has no coroutines, no threads and no Android in it: frames go in through
+ * [onFrame] and commands come out through the transport, so the ordering rules the firmware
+ * cares about can be tested without a radio or a phone. Everything that knows about
+ * Bluetooth lives in the transport.
+ *
+ * The session is not thread-safe and expects to be driven from one place — on Android, the
+ * same callback thread the GATT delivers notifications on.
+ */
+class Session(
+    private val transport: Transport,
+    private val listener: Listener,
+    private val appName: String = "amime",
+) {
+
+    interface Listener {
+        /** The radio said what it is. Carries the BLE PIN it will actually ask for. */
+        fun onDevice(info: Frame.DeviceInfo) {}
+
+        /** The radio said who it is. After this the session is usable. */
+        fun onReady(self: Frame.SelfInfo) {}
+
+        /** One contact, either from a list sync or an unprompted advert. */
+        fun onContact(contact: Frame.Contact) {}
+
+        /**
+         * A contact sync finished. [since] is what to pass to the next [syncContacts] so the
+         * radio only sends what changed.
+         */
+        fun onContactsSynced(since: Long) {}
+
+        /** A message arrived. */
+        fun onMessage(message: Frame.MessageReceived) {}
+
+        /**
+         * A message this app sent was accepted by the radio. [awaitingAck] is false when no
+         * acknowledgement will ever come, which is not a failure — see [Frame.Sent].
+         */
+        fun onSent(sent: Frame.Sent, awaitingAck: Boolean) {}
+
+        /** A message this app sent was acknowledged by the far end. */
+        fun onDelivered(ackHash: Long, roundTripMs: Long) {}
+
+        /** Battery, and storage when the firmware reports it. */
+        fun onBattery(battery: Frame.BattAndStorage) {}
+
+        /** The radio refused a command. */
+        fun onFailed(code: Int) {}
+
+        /**
+         * Something is wrong with how this app is talking to the radio, as opposed to
+         * something being wrong out in the mesh. Worth surfacing rather than logging.
+         */
+        fun onProtocolProblem(problem: Problem) {}
+    }
+
+    enum class Problem {
+        /**
+         * A pre-v3 message frame arrived, which the radio only sends to an app it thinks is
+         * version 0. It means the device query did not reach it, or reached it too late.
+         */
+        HANDSHAKE_SKIPPED,
+
+        /** A frame arrived shorter than its own opening byte claims — usually a small MTU. */
+        FRAME_TRUNCATED,
+
+        /** The radio sent a code this app does not know. Harmless, but worth counting. */
+        UNKNOWN_FRAME,
+    }
+
+    var device: Frame.DeviceInfo? = null
+        private set
+
+    var self: Frame.SelfInfo? = null
+        private set
+
+    /** True between a contacts request and its end-of-list frame. */
+    var syncingContacts: Boolean = false
+        private set
+
+    private var draining = false
+    private var mostRecentLastMod = 0L
+    private val awaitingAcks = mutableSetOf<Long>()
+
+    /**
+     * Open the conversation.
+     *
+     * The device query goes first and is not optional: it is the only frame that tells the
+     * radio which protocol version this app speaks, and without it every later message comes
+     * back in a layout with different offsets. Sending [Commands.appStart] first and the
+     * query afterwards is not equivalent — by then the first messages have already been
+     * queued in the wrong shape.
+     */
+    fun start() {
+        device = null
+        self = null
+        draining = false
+        syncingContacts = false
+        awaitingAcks.clear()
+        Commands.handshake(appName).forEach(transport::send)
+    }
+
+    /**
+     * Ask for the contact list, or only what changed since [since].
+     *
+     * Ignored while a sync is already running: the firmware keeps one iterator and answers a
+     * second request with a bad-state error rather than queueing it.
+     */
+    fun syncContacts(since: Long? = null) {
+        if (syncingContacts) return
+        syncingContacts = true
+        transport.send(Commands.getContacts(since))
+    }
+
+    /** Send plain text to a contact, addressed by the six-byte prefix of its key. */
+    fun sendMessage(recipientPrefix: ByteArray, text: String, timestamp: Long) {
+        transport.send(Commands.sendTextMessage(recipientPrefix, text, timestamp))
+    }
+
+    /** Ask for battery and storage. */
+    fun refreshBattery() = transport.send(Commands.getBattAndStorage())
+
+    /** One whole frame, as it came off the radio. */
+    fun onFrame(bytes: ByteArray) = handle(Decoder.decode(bytes))
+
+    private fun handle(frame: Frame) {
+        when (frame) {
+            is Frame.DeviceInfo -> {
+                device = frame
+                listener.onDevice(frame)
+            }
+
+            is Frame.SelfInfo -> {
+                self = frame
+                listener.onReady(frame)
+            }
+
+            is Frame.ContactsStart -> syncingContacts = true
+
+            is Frame.Contact -> {
+                if (frame.lastMod > mostRecentLastMod) mostRecentLastMod = frame.lastMod
+                listener.onContact(frame)
+            }
+
+            is Frame.ContactsEnd -> {
+                syncingContacts = false
+                // The radio's own answer is authoritative here; the running maximum is only
+                // a fallback for a firmware that reports zero.
+                val since = if (frame.mostRecentLastMod > 0) {
+                    frame.mostRecentLastMod
+                } else {
+                    mostRecentLastMod
+                }
+                listener.onContactsSynced(since)
+            }
+
+            // A tickle with nothing in it. The queue is drained by asking repeatedly, and
+            // one request is enough to start: each message answered asks for the next.
+            is Frame.MessagesWaiting -> if (!draining) {
+                draining = true
+                transport.send(Commands.syncNextMessage())
+            }
+
+            is Frame.MessageReceived -> {
+                if (frame.snr.isNaN()) listener.onProtocolProblem(Problem.HANDSHAKE_SKIPPED)
+                listener.onMessage(frame)
+                // Keep pulling until the radio says the queue is empty. A message can also
+                // arrive without a preceding tickle, so this starts the drain either way.
+                draining = true
+                transport.send(Commands.syncNextMessage())
+            }
+
+            is Frame.NoMoreMessages -> draining = false
+
+            is Frame.Sent -> {
+                val awaiting = frame.expectedAck != 0L
+                if (awaiting) awaitingAcks += frame.expectedAck
+                listener.onSent(frame, awaiting)
+            }
+
+            is Frame.SendConfirmed -> {
+                // The same acknowledgement can arrive more than once; only the first is a
+                // delivery, the rest are repeats of one.
+                if (awaitingAcks.remove(frame.ackHash)) {
+                    listener.onDelivered(frame.ackHash, frame.roundTripMs)
+                }
+            }
+
+            is Frame.Failed -> {
+                // A refused contacts request leaves no iterator running, so the flag has to
+                // come back down or every later sync is silently dropped by this class.
+                if (syncingContacts) syncingContacts = false
+                listener.onFailed(frame.code)
+            }
+
+            is Frame.Malformed -> {
+                listener.onProtocolProblem(Problem.FRAME_TRUNCATED)
+                // A truncated contact frame ends the list as far as the radio is concerned,
+                // but not as far as this class is concerned unless the flag is cleared.
+                if (frame.code == Resp.END_OF_CONTACTS) syncingContacts = false
+            }
+
+            is Frame.Unhandled -> listener.onProtocolProblem(Problem.UNKNOWN_FRAME)
+
+            is Frame.BattAndStorage -> listener.onBattery(frame)
+
+            Frame.Ok, Frame.Disabled -> Unit
+        }
+    }
+}
