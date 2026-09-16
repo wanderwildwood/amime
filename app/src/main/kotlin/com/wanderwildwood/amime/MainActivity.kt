@@ -19,12 +19,13 @@ import com.wanderwildwood.amime.mesh.Person
 import com.wanderwildwood.amime.ui.ConversationScreen
 import com.wanderwildwood.amime.ui.PeopleScreen
 import com.wanderwildwood.amime.ui.RadiosScreen
+import com.wanderwildwood.amime.ui.monochrome
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            ThemeMMD {
+            ThemeMMD(colorScheme = monochrome) {
                 Mesh()
             }
         }
