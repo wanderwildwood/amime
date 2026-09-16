@@ -3,6 +3,7 @@ import java.util.Properties
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
 }
 
 android {
@@ -71,9 +72,8 @@ android {
     }
 
     buildFeatures {
-        // No screens yet — this slice is the companion protocol and its tests. Compose
-        // gets switched on with the first one.
-        compose = false
+        compose = true
+        // The About dialog shows the version it is actually running.
         buildConfig = true
     }
 
@@ -85,6 +85,17 @@ android {
 
 dependencies {
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+
+    implementation(libs.compose.ui)
+    implementation(libs.compose.foundation)
+    implementation(libs.compose.material3)
+    implementation(libs.compose.ui.tooling.preview)
+    debugImplementation(libs.compose.ui.tooling)
+
+    implementation(libs.mmd)
 
     testImplementation(libs.junit)
 }

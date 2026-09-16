@@ -1,0 +1,90 @@
+package com.wanderwildwood.amime.mesh
+
+import com.wanderwildwood.amime.protocol.AdvType
+
+/**
+ * Someone, or something, on the mesh.
+ *
+ * Identified by the six-byte prefix the radio addresses messages with, not by the full public
+ * key, because the prefix is the only form that arrives on a received message.
+ */
+data class Person(
+    val prefix: List<Byte>,
+    val name: String,
+    val type: Int,
+    /**
+     * Whether the radio knows a route to this node, or has only ever heard it by flood.
+     *
+     * Drawn as the difference between a solid and a dotted border rather than said in words:
+     * it is the house rule for provisional, and it is true of a contact often enough that a
+     * line of text about it would be furniture.
+     */
+    val pathKnown: Boolean,
+    val lastHeard: Long,
+) {
+    /**
+     * What to show when a node has advertised no name.
+     *
+     * Some fraction of any contact list is nodes that have never sent one, and an empty row
+     * is worse than a short hexadecimal one: the reader can at least match the latter against
+     * a node's own screen.
+     */
+    val label: String
+        get() = name.ifBlank { prefix.joinToString("") { "%02x".format(it) } }
+
+    val isRepeater: Boolean get() = type == AdvType.REPEATER
+}
+
+/** How far a message this app sent has actually got. */
+enum class Delivery {
+    /** Handed to the radio; the radio has not answered yet. */
+    SENDING,
+
+    /** The radio took it and an acknowledgement is expected. Drawn provisional. */
+    AWAITING_ACK,
+
+    /** The far end acknowledged it. */
+    ACKNOWLEDGED,
+
+    /**
+     * The radio took it and said no acknowledgement is coming.
+     *
+     * Not a failure and not a pending state, which is why it is neither of the two above: a
+     * dotted border that can never resolve would be a claim that something is still in
+     * progress.
+     */
+    NO_ACK_EXPECTED,
+
+    /** The radio refused it. */
+    REFUSED,
+}
+
+data class Message(
+    val id: Long,
+    val text: String,
+    val mine: Boolean,
+    val timestamp: Long,
+    val delivery: Delivery,
+    /** Signal-to-noise for a received message, or null when the radio did not say. */
+    val snr: Float? = null,
+    /** Whether a received message arrived direct rather than through repeaters. */
+    val direct: Boolean? = null,
+)
+
+data class Conversation(
+    val person: Person,
+    val messages: List<Message> = emptyList(),
+)
+
+data class MeshState(
+    val nodeName: String? = null,
+    val people: List<Person> = emptyList(),
+    val conversations: Map<List<Byte>, List<Message>> = emptyMap(),
+    val batteryMillivolts: Int? = null,
+    /** True once the radio has answered the handshake and the app can send. */
+    val ready: Boolean = false,
+) {
+    fun conversationWith(prefix: List<Byte>): Conversation? =
+        people.firstOrNull { it.prefix == prefix }
+            ?.let { Conversation(it, conversations[prefix].orEmpty()) }
+}
