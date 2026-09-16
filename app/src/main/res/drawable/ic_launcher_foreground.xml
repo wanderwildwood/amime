@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A patch of net: 網目, amime, which is what a mesh is called when it is a thing rather
+     than a network diagram. Six strands, three each way, crossing into open diamonds.
+
+     Not waves radiating from a dot. Every radio app draws that, it says "broadcast" when
+     this is the opposite of broadcast, and on a panel with sixteen greys concentric arcs
+     are the first thing to turn into a smudge.
+
+     Drawn to the five rules measured off the owner's own chanterelle in
+     kinokocho/tools/make-art.py: a thin line, one weight throughout, few strokes, crooked
+     rather than symmetrical, and no solid black. The same 2.0 stroke and round cap as the
+     Tuning Fork, so the two sit on a home screen as one hand.
+
+     Sized for the panel, not the page. The first version spaced the strands 20 units apart
+     and was a net at 108dp and a patch of hatching at 48: the cells closed up and the
+     whole mark went grey. At 27 units the cells stay open all the way down, which is the
+     only thing here that has to survive. An open net and a filled square are different
+     marks, and only one of them is this one.
+
+     Nothing is parallel and no two cells are the same size: each strand bows a little, by
+     a different amount and not always the same way, which is what a strung net does and
+     what a drawn line does. A perfect lattice reads as graph paper.
+
+     Everything sits inside the central 66 units the launcher mask is certain to keep. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- three strands falling to the right -->
+    <path
+        android:strokeColor="#000000"
+        android:strokeWidth="2.0"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M24.5,56.5 Q41.6,41.6 56.4,24.3" />
+    <path
+        android:strokeColor="#000000"
+        android:strokeWidth="2.0"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M32.4,75.6 Q52.6,52.6 75.6,32.5" />
+    <path
+        android:strokeColor="#000000"
+        android:strokeWidth="2.0"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M51.4,83.5 Q68.8,68.8 83.6,51.6" />
+
+    <!-- three falling to the left -->
+    <path
+        android:strokeColor="#000000"
+        android:strokeWidth="2.0"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M51.0,24.6 Q66.5,41.5 84.2,56.5" />
+    <path
+        android:strokeColor="#000000"
+        android:strokeWidth="2.0"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M33.1,32.5 Q55.6,52.4 75.0,75.6" />
+    <path
+        android:strokeColor="#000000"
+        android:strokeWidth="2.0"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M24.3,51.5 Q41.6,66.4 56.6,84.2" />
+</vector>

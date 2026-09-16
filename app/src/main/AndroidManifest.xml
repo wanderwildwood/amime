@@ -26,12 +26,12 @@
 
     <application
         android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:supportsRtl="false"
         android:theme="@style/Theme.App">
 
-        <!-- No android:icon yet, so this wears the system default. An icon is drawn by hand
-             and looked at before it ships rather than generated into place. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
