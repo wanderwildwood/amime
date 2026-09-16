@@ -13,7 +13,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.mudita.mmd.components.buttons.OutlinedButtonMMD
 import com.mudita.mmd.components.lazy.LazyColumnMMD
 import com.mudita.mmd.components.text.TextMMD
@@ -36,7 +35,7 @@ fun RadiosScreen(
 ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surface,
-        topBar = { TopAppBarMMD(title = { TextMMD(text = "Radios", fontSize = 24.sp) }) },
+        topBar = { TopAppBarMMD(title = { TextMMD(text = "Radios") }) },
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             if (radios.isEmpty()) {
@@ -49,7 +48,7 @@ fun RadiosScreen(
                             // worth guessing between on the reader's behalf.
                             "No radio found. It may be out of range, or switched off."
                         },
-                        fontSize = 16.sp,
+                        style = MaterialTheme.typography.titleSmall,
                         modifier = Modifier.padding(horizontal = 24.dp),
                     )
                 }
@@ -66,7 +65,7 @@ fun RadiosScreen(
                 enabled = !scanning,
                 modifier = Modifier.fillMaxWidth().padding(12.dp),
             ) {
-                TextMMD(text = if (scanning) "Looking" else "Look again", fontSize = 16.sp)
+                TextMMD(text = if (scanning) "Looking" else "Look again", style = MaterialTheme.typography.titleSmall)
             }
         }
     }
@@ -83,9 +82,9 @@ private fun RadioRow(radio: MeshViewModel.Radio, onClick: () -> Unit) {
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
-        TextMMD(text = radio.name, fontSize = 18.sp)
+        TextMMD(text = radio.name, style = MaterialTheme.typography.bodyMedium)
         // The signal is worth a line here and nowhere else: it is the one number that says
         // whether the thing you are about to pair with is near enough to stay paired.
-        radio.rssi?.let { TextMMD(text = "$it dBm", fontSize = 14.sp) }
+        radio.rssi?.let { TextMMD(text = "$it dBm", style = MaterialTheme.typography.labelSmall) }
     }
 }

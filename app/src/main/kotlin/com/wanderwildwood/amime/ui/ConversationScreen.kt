@@ -19,7 +19,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.mudita.mmd.components.buttons.OutlinedButtonMMD
 import com.mudita.mmd.components.lazy.LazyColumnMMD
 import com.mudita.mmd.components.text.TextMMD
@@ -52,7 +51,7 @@ fun ConversationScreen(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             TopAppBarMMD(
-                title = { TextMMD(text = conversation.person.label, fontSize = 24.sp) },
+                title = { TextMMD(text = conversation.person.label) },
                 navigationIcon = { BarButton(Icons.Close, "Back", onBack) },
             )
         },
@@ -83,7 +82,7 @@ fun ConversationScreen(
                     // by the button being dead is thinner than a line of text under it.
                     enabled = canSend && draft.isNotBlank(),
                 ) {
-                    TextMMD(text = "Send", fontSize = 16.sp)
+                    TextMMD(text = "Send", style = MaterialTheme.typography.titleSmall)
                 }
             }
         }
@@ -109,10 +108,10 @@ private fun MessageRow(message: Message) {
         ) {
             TextMMD(
                 text = message.text,
-                fontSize = 16.sp,
+                style = MaterialTheme.typography.titleSmall,
                 fontWeight = if (message.mine) FontWeight.Normal else FontWeight.Bold,
             )
-            message.note()?.let { TextMMD(text = it, fontSize = 12.sp) }
+            message.note()?.let { TextMMD(text = it, style = MaterialTheme.typography.labelSmall) }
         }
     }
 }
