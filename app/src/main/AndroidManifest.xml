@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- The radio is a BLE peripheral and this app is the only thing that talks to it.
+         Android 12 is where these split out of the old BLUETOOTH permission, and the
+         Kompakt is Android 12, so these are the right two and there is no older pair to
+         fall back to. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <!-- neverForLocation is not a formality: a BLE scan counts as location access unless
+         the app promises not to use it that way, and without this the phone asks for
+         location to talk to a radio sitting on the desk. Nothing here derives a position
+         from a scan result. -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
+
+    <uses-feature
+        android:name="android.hardware.bluetooth_le"
+        android:required="true" />
+
+    <!-- No INTERNET permission, and there will not be one. Everything this app knows comes
+         off the radio over Bluetooth; a mesh app that phoned home would be a contradiction. -->
+
+    <application
+        android:allowBackup="false"
+        android:label="@string/app_name"
+        android:supportsRtl="false" />
+
+</manifest>
