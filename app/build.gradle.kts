@@ -44,6 +44,12 @@ android {
             realSigningConfig?.let { signingConfig = it }
         }
         getByName("release") {
+            // AGP otherwise stamps the git revision of the build into the APK, which
+            // publishes a little more about how a release was made than a release needs to.
+            vcsInfo {
+                include = false
+            }
+
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

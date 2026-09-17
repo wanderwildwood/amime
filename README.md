@@ -11,6 +11,19 @@ not the nodes but the spaces they hold open between them.
 Not a fork. Written from scratch in Kotlin, and where it needs a screen it will use Mudita's
 own [MMD](https://github.com/mudita/MMD) design system, as the rest of these apps do.
 
+<!-- Four screenshots go here before the first release, in the table below, taken on the
+     `kompakt` emulator AVD at 480x752 rather than on a phone. They cannot be taken yet:
+     three of the four want a radio with a contact in it, and the emulator has no Bluetooth
+     to a real node. The shots wanted are the radio picker, the people list with somebody in
+     it, a conversation showing a message still waiting against one acknowledged, and the
+     About.
+
+| | |
+|---|---|
+| ![Choosing a radio](screenshots/1-radios.png) | ![Who the radio knows](screenshots/2-people.png) |
+| ![How far a message got](screenshots/3-conversation.png) | ![What it does and does not claim](screenshots/4-about.png) |
+-->
+
 ## Where this is up to
 
 **Version 0.1.0.** The protocol, the session that drives it, the Bluetooth transport
