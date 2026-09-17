@@ -129,6 +129,20 @@ class Session(
     /** Ask for battery and storage. */
     fun refreshBattery() = transport.send(Commands.getBattAndStorage())
 
+    /**
+     * Change which mesh this radio is on.
+     *
+     * Takes effect immediately and is saved. Every node that is to hear this one has to match
+     * all four numbers, so this is the setting that decides whether the mesh exists at all.
+     */
+    fun setRadioParams(frequencyKhz: Int, bandwidthHz: Int, spreadingFactor: Int, codingRate: Int) =
+        transport.send(
+            Commands.setRadioParams(frequencyKhz, bandwidthHz, spreadingFactor, codingRate),
+        )
+
+    /** Fix the Bluetooth pairing PIN. Takes effect when the radio next restarts. */
+    fun setDevicePin(pin: Int) = transport.send(Commands.setDevicePin(pin))
+
     /** One whole frame, as it came off the radio. */
     fun onFrame(bytes: ByteArray) = handle(Decoder.decode(bytes))
 

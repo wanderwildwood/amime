@@ -84,6 +84,61 @@ class CommandsTest {
         assertEquals("04 04 03 02 01", Commands.getContacts(0x01020304).hex())
     }
 
+    /**
+     * The command that stops a node with a screen inventing a new PIN on every boot.
+     */
+    @Test
+    fun `setting the device pin sends four little-endian bytes`() {
+        assertEquals("25 cd 9d 0e 00", Commands.setDevicePin(957901).hex())
+        assertEquals(Cmd.SET_DEVICE_PIN, Commands.setDevicePin(123456).u8(0))
+        // 0 hands the choice back to the firmware, and is explicitly allowed.
+        assertEquals("25 00 00 00 00", Commands.setDevicePin(0).hex())
+    }
+
+    @Test
+    fun `a pin the radio would refuse is refused here first`() {
+        listOf(1, 99999, 1000000, -1).forEach { bad ->
+            assertThrows(IllegalArgumentException::class.java) { Commands.setDevicePin(bad) }
+        }
+    }
+
+    /**
+     * The four numbers that decide who a node can hear, and the reason the units matter: the
+     * firmware reads frequency as kHz and bandwidth as Hz out of the same frame.
+     */
+    @Test
+    fun `radio params are frequency in kHz then bandwidth in Hz`() {
+        // The USA/Canada recommended preset.
+        val frame = Commands.setRadioParams(
+            frequencyKhz = 910_525,
+            bandwidthHz = 62_500,
+            spreadingFactor = 7,
+            codingRate = 5,
+        )
+        assertEquals("0b bd e4 0d 00 24 f4 00 00 07 05 00", frame.hex())
+        assertEquals(Cmd.SET_RADIO_PARAMS, frame.u8(0))
+        assertEquals(12, frame.size)
+    }
+
+    @Test
+    fun `client repeating is off unless asked for`() {
+        assertEquals(0, Commands.setRadioParams(910_525, 62_500, 7, 5).last().toInt())
+        assertEquals(1, Commands.setRadioParams(910_525, 62_500, 7, 5, repeat = true).last().toInt())
+    }
+
+    /** Each bound is the firmware's own; sending outside it earns an error frame instead. */
+    @Test
+    fun `parameters the radio would reject are refused here first`() {
+        assertThrows(IllegalArgumentException::class.java) { Commands.setRadioParams(149_999, 62_500, 7, 5) }
+        assertThrows(IllegalArgumentException::class.java) { Commands.setRadioParams(2_500_001, 62_500, 7, 5) }
+        assertThrows(IllegalArgumentException::class.java) { Commands.setRadioParams(910_525, 6_999, 7, 5) }
+        assertThrows(IllegalArgumentException::class.java) { Commands.setRadioParams(910_525, 500_001, 7, 5) }
+        assertThrows(IllegalArgumentException::class.java) { Commands.setRadioParams(910_525, 62_500, 4, 5) }
+        assertThrows(IllegalArgumentException::class.java) { Commands.setRadioParams(910_525, 62_500, 13, 5) }
+        assertThrows(IllegalArgumentException::class.java) { Commands.setRadioParams(910_525, 62_500, 7, 4) }
+        assertThrows(IllegalArgumentException::class.java) { Commands.setRadioParams(910_525, 62_500, 7, 9) }
+    }
+
     @Test
     fun `single-byte commands are a single byte`() {
         assertArrayEquals(byteArrayOf(10), Commands.syncNextMessage())

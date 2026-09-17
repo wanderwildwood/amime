@@ -84,6 +84,66 @@ object Commands {
     /** Battery and storage. Answered by [Resp.BATT_AND_STORAGE]. */
     fun getBattAndStorage(): ByteArray = FrameWriter(1).u8(Cmd.GET_BATT_AND_STORAGE).build()
 
+    /**
+     * Set the radio's frequency, bandwidth and coding.
+     *
+     * These four numbers are what decides who you can hear. Every node on a mesh must match on
+     * all of them; a node with the right frequency and the wrong spreading factor is as deaf as
+     * one on another band, and it looks from the inside exactly like an empty mesh.
+     *
+     * Note the units, which are not the same on both: [frequencyKhz] is **kHz** and
+     * [bandwidthHz] is **Hz**, matching what the radio reports back in
+     * [Frame.SelfInfo.frequencyKhz] and [Frame.SelfInfo.bandwidthHz]. The firmware accepts
+     * 150000-2500000 kHz, 7000-500000 Hz, spreading factor 5-12 and coding rate 5-8.
+     *
+     * Unlike [setDevicePin] this takes effect at once — the firmware reconfigures the radio
+     * before it answers — and is saved, so it survives a restart.
+     *
+     * [repeat] turns on client-side repeating and is off here: repeating is a repeater's job,
+     * and a companion that relays is the thing MeshCore's design exists to avoid.
+     */
+    fun setRadioParams(
+        frequencyKhz: Int,
+        bandwidthHz: Int,
+        spreadingFactor: Int,
+        codingRate: Int,
+        repeat: Boolean = false,
+    ): ByteArray {
+        require(frequencyKhz in 150_000..2_500_000) { "frequency out of range: $frequencyKhz kHz" }
+        require(bandwidthHz in 7_000..500_000) { "bandwidth out of range: $bandwidthHz Hz" }
+        require(spreadingFactor in 5..12) { "spreading factor out of range: $spreadingFactor" }
+        require(codingRate in 5..8) { "coding rate out of range: $codingRate" }
+        return FrameWriter(12)
+            .u8(Cmd.SET_RADIO_PARAMS)
+            .u32(frequencyKhz.toLong())
+            .u32(bandwidthHz.toLong())
+            .u8(spreadingFactor)
+            .u8(codingRate)
+            .u8(if (repeat) 1 else 0)
+            .build()
+    }
+
+    /**
+     * Fix the radio's Bluetooth pairing PIN.
+     *
+     * Worth doing once on any node with a screen. Where the PIN preference is unset **and the
+     * board has a display**, the firmware invents a fresh six-digit PIN on every boot and
+     * shows it only on that screen — so the PIN is different after every power cut, and a
+     * headless reconnect has nothing to type. Setting it explicitly stops that.
+     *
+     * [pin] must be six digits, or 0 to hand the choice back to the firmware. Anything else
+     * is refused with [Err.ILLEGAL_ARG].
+     *
+     * ⚠ The radio stores this but goes on using the PIN it picked at boot: the active one is
+     * computed once at startup. **It takes effect after the radio restarts**, not now.
+     */
+    fun setDevicePin(pin: Int): ByteArray {
+        require(pin == 0 || pin in 100000..999999) {
+            "a device PIN is six digits, or 0 to let the radio choose; got $pin"
+        }
+        return FrameWriter(5).u8(Cmd.SET_DEVICE_PIN).u32(pin.toLong()).build()
+    }
+
     /** Re-advertise this node so others can find it. */
     fun sendSelfAdvert(flood: Boolean = false): ByteArray =
         FrameWriter(2).u8(Cmd.SEND_SELF_ADVERT).u8(if (flood) 1 else 0).build()
