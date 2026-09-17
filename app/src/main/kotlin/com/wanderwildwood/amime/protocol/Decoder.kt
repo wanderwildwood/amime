@@ -44,6 +44,17 @@ object Decoder {
 
             Resp.BATT_AND_STORAGE -> if (frame.size >= 3) battery(frame) else short()
 
+            Push.LOG_RX_DATA ->
+                if (frame.size >= 3) {
+                    Frame.PacketHeard(
+                        snr = frame.i8(1) / 4f,
+                        rssi = frame.i8(2),
+                        bytes = frame.copyOfRange(3, frame.size),
+                    )
+                } else {
+                    short()
+                }
+
             Push.SEND_CONFIRMED ->
                 if (frame.size >= 9) Frame.SendConfirmed(frame.u32(1), frame.u32(5)) else short()
 

@@ -126,6 +126,10 @@ class MeshStore(
         setDelivery(target, Delivery.REFUSED)
     }
 
+    override fun onPacketHeard(packet: Frame.PacketHeard) = update {
+        copy(heard = heard.plus(packet.snr, packet.rssi))
+    }
+
     override fun onBattery(battery: Frame.BattAndStorage) = update {
         copy(batteryMillivolts = battery.batteryMillivolts)
     }

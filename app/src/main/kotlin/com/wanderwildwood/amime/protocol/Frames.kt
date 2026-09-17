@@ -180,6 +180,27 @@ sealed interface Frame {
     /** A send was acknowledged. Matches the [Sent.expectedAck] handed out earlier. */
     data class SendConfirmed(val ackHash: Long, val roundTripMs: Long) : Frame
 
+    /**
+     * A packet the radio heard off the air, with how well it heard it.
+     *
+     * Pushed for **every** raw packet received, whoever it was from and whoever it was for —
+     * the firmware logs it before it even tries to parse it. So this says "something is out
+     * there" in cases where nothing else does: a node too far away to decode cleanly, or
+     * traffic between two other stations that has nothing to do with us.
+     *
+     * That makes it the one honest answer to "is there anybody within range", which a contact
+     * list cannot give, because a contact only appears once a readable advert arrives.
+     *
+     * [snr] is real dB, divided back down from the quarter-dB the wire carries. [rssi] is dBm.
+     */
+    data class PacketHeard(val snr: Float, val rssi: Int, val bytes: ByteArray) : Frame {
+        override fun equals(other: Any?): Boolean =
+            this === other || (other is PacketHeard && snr == other.snr && rssi == other.rssi &&
+                bytes.contentEquals(other.bytes))
+
+        override fun hashCode(): Int = 31 * rssi + bytes.contentHashCode()
+    }
+
     /** A frame this app does not decode yet, kept whole rather than dropped. */
     data class Unhandled(val code: Int, val bytes: ByteArray) : Frame {
         override fun equals(other: Any?): Boolean =

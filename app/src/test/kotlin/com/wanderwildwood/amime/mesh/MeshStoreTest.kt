@@ -198,6 +198,31 @@ class MeshStoreTest {
 
     // ---- the rest ----
 
+    /**
+     * Heard packets are counted apart from contacts on purpose: on a survey, "the antenna is
+     * picking something up" and "somebody sent a readable advert" are different answers.
+     */
+    @Test
+    fun `heard packets are tallied with the best signal, not the last`() {
+        assertEquals(0, store.state.heard.packets)
+        assertNull(store.state.heard.bestSnr)
+
+        store.onPacketHeard(Frame.PacketHeard(-12f, -110, ByteArray(0)))
+        store.onPacketHeard(Frame.PacketHeard(-4.5f, -95, ByteArray(0)))
+        store.onPacketHeard(Frame.PacketHeard(-20f, -120, ByteArray(0)))
+
+        assertEquals(3, store.state.heard.packets)
+        assertEquals(-4.5f, store.state.heard.bestSnr!!, 0.001f)
+        assertEquals(-95, store.state.heard.bestRssi)
+    }
+
+    @Test
+    fun `hearing packets does not invent a contact`() {
+        store.onPacketHeard(Frame.PacketHeard(0f, -90, ByteArray(0)))
+        assertEquals(0, store.state.people.size)
+        assertEquals(1, store.state.heard.packets)
+    }
+
     @Test
     fun `the session becoming ready is what lets the screen send`() {
         assertFalse(store.state.ready)

@@ -50,6 +50,12 @@ class Session(
         /** A message this app sent was acknowledged by the far end. */
         fun onDelivered(ackHash: Long, roundTripMs: Long) {}
 
+        /**
+         * The radio heard a packet off the air. Says nothing about who or what — only that
+         * something transmitted within earshot, and how strongly it arrived.
+         */
+        fun onPacketHeard(packet: Frame.PacketHeard) {}
+
         /** Battery, and storage when the firmware reports it. */
         fun onBattery(battery: Frame.BattAndStorage) {}
 
@@ -224,6 +230,8 @@ class Session(
             }
 
             is Frame.Unhandled -> listener.onProtocolProblem(Problem.UNKNOWN_FRAME)
+
+            is Frame.PacketHeard -> listener.onPacketHeard(frame)
 
             is Frame.BattAndStorage -> listener.onBattery(frame)
 

@@ -81,10 +81,33 @@ data class MeshState(
     val people: List<Person> = emptyList(),
     val conversations: Map<List<Byte>, List<Message>> = emptyMap(),
     val batteryMillivolts: Int? = null,
+    /**
+     * Everything the radio has heard off the air this session, readable or not.
+     *
+     * Kept separately from [people] because the two answer different questions. A contact
+     * means somebody sent a readable advert; this means the antenna is picking *anything* up.
+     * On a site survey the second is the one that tells you whether to keep walking.
+     */
+    val heard: Heard = Heard(),
     /** True once the radio has answered the handshake and the app can send. */
     val ready: Boolean = false,
 ) {
     fun conversationWith(prefix: List<Byte>): Conversation? =
         people.firstOrNull { it.prefix == prefix }
             ?.let { Conversation(it, conversations[prefix].orEmpty()) }
+}
+
+
+/** What the radio has picked up off the air, regardless of whether any of it was readable. */
+data class Heard(
+    val packets: Int = 0,
+    /** The strongest thing heard, by SNR. Null until something arrives. */
+    val bestSnr: Float? = null,
+    val bestRssi: Int? = null,
+) {
+    fun plus(snr: Float, rssi: Int): Heard = Heard(
+        packets = packets + 1,
+        bestSnr = if (bestSnr == null || snr > bestSnr) snr else bestSnr,
+        bestRssi = if (bestRssi == null || rssi > bestRssi) rssi else bestRssi,
+    )
 }

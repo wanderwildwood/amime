@@ -299,6 +299,30 @@ class DecoderTest {
 
     // ---- the rest ----
 
+    /**
+     * The one frame that answers "is there anybody out there" when the contact list cannot:
+     * the radio logs every raw packet before it tries to parse it.
+     */
+    @Test
+    fun `a heard packet carries real SNR and RSSI`() {
+        val f = frame(
+            Push.LOG_RX_DATA,
+            (-30).toByte().toInt() and 0xFF,   // -7.5 dB, times four
+            (-96).toByte().toInt() and 0xFF,   // dBm, already signed
+            byteArrayOf(0x11, 0x22, 0x33),
+        )
+        val heard = Decoder.decode(f) as Frame.PacketHeard
+        assertEquals(-7.5f, heard.snr, 0.001f)
+        assertEquals(-96, heard.rssi)
+        assertArrayEquals(byteArrayOf(0x11, 0x22, 0x33), heard.bytes)
+    }
+
+    @Test
+    fun `a heard packet with no payload still reports its signal`() {
+        val heard = Decoder.decode(frame(Push.LOG_RX_DATA, 20, (-70).toByte().toInt() and 0xFF))
+        assertEquals(Frame.PacketHeard(5f, -70, ByteArray(0)), heard)
+    }
+
     @Test
     fun `a send is accepted, which is not the same as delivered`() {
         val sent = Decoder.decode(frame(Resp.SENT, 1, u32(0xABCD), u32(9000))) as Frame.Sent
