@@ -43,9 +43,20 @@ fun PeopleScreen(
         topBar = {
             TopAppBarMMD(
                 title = {
-                    // The node's own name, because on a mesh which radio you are is the first
-                    // thing worth knowing and there is nowhere else it would be said.
-                    TextMMD(text = state.nodeName ?: "Mesh")
+                    Column {
+                        // The node's own name, because on a mesh which radio you are is the
+                        // first thing worth knowing and there is nowhere else it would say it.
+                        TextMMD(text = state.nodeName ?: "Mesh")
+                        // Only where there is a reading. A node that has not answered yet is
+                        // not a node at nothing, and a figure drawn from no reply would say
+                        // it was. It matters for a node that leaves the desk.
+                        state.batteryMillivolts?.let {
+                            TextMMD(
+                                text = batteryLine(it),
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        }
+                    }
                 },
                 // About is not a setting, and it is the one thing a stranger looks for
                 // before trusting an app. An i in the top right, as everywhere else here.
@@ -70,6 +81,25 @@ fun PeopleScreen(
     }
 
     if (aboutOpen) AboutDialog(onDismiss = { aboutOpen = false })
+}
+
+/**
+ * The radio's battery, in its own terms.
+ *
+ * Millivolts rather than a percentage, with a rough reading of what they mean beside it. A
+ * percentage would be invented: the firmware reports a voltage and nothing about the cell it
+ * came from, so any curve mapping one to the other here would be a guess wearing a number's
+ * clothes. The words say roughly, because roughly is what is known.
+ */
+private fun batteryLine(millivolts: Int): String {
+    val volts = millivolts / 1000f
+    val sense = when {
+        millivolts >= 4000 -> "full"
+        millivolts >= 3700 -> "good"
+        millivolts >= 3500 -> "getting low"
+        else -> "low"
+    }
+    return "%.2f V, %s".format(volts, sense)
 }
 
 @Composable
@@ -103,10 +133,19 @@ private fun PersonRow(person: Person, unread: Boolean, onClick: () -> Unit) {
 private fun Empty(state: MeshState, modifier: Modifier) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         TextMMD(
-            text = if (state.ready) {
-                "Nobody yet. The radio hears a node when it advertises itself, which can take a while."
-            } else {
-                "Not connected to a radio."
+            // Three situations, and they want different things done about them. An empty
+            // list because nothing is transmitting is a reason to move the antenna; an empty
+            // list while it is picking up traffic is a reason to wait.
+            text = when {
+                !state.ready -> "Not connected to a radio."
+                state.heard.packets == 0 ->
+                    "Nobody yet, and nothing at all on the air since connecting."
+                else ->
+                    "Nobody yet, but ${state.heard.packets} " +
+                        (if (state.heard.packets == 1) "packet" else "packets") +
+                        " heard since connecting" +
+                        (state.heard.bestSnr?.let { ", strongest %.1f dB".format(it) } ?: "") +
+                        ". Something is transmitting in range; none of it a readable advert."
             },
             style = MaterialTheme.typography.titleSmall,
             modifier = Modifier.padding(horizontal = 24.dp),

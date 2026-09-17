@@ -4,6 +4,8 @@ import com.wanderwildwood.amime.protocol.Commands
 import com.wanderwildwood.amime.protocol.Decoder
 import com.wanderwildwood.amime.protocol.Frame
 import com.wanderwildwood.amime.protocol.Resp
+import com.wanderwildwood.amime.protocol.Sizes
+import com.wanderwildwood.amime.protocol.TxtType
 
 /**
  * Drives the companion protocol over a [Transport].
@@ -40,6 +42,21 @@ class Session(
 
         /** A message arrived. */
         fun onMessage(message: Frame.MessageReceived) {}
+
+        /**
+         * A node answered a CLI command.
+         *
+         * Kept apart from [onMessage] because it is not one: it arrives by the same path and
+         * with the same frame, but it is a machine answering a question, and putting it in a
+         * conversation would mix the two.
+         */
+        fun onCliResponse(from: List<Byte>, text: String) {}
+
+        /** A repeater or room server let us in. */
+        fun onLoggedIn(login: Frame.LoginSucceeded) {}
+
+        /** A repeater or room server did not. It does not say why. */
+        fun onLoginRefused(from: List<Byte>) {}
 
         /**
          * A message this app sent was accepted by the radio. [awaitingAck] is false when no
@@ -149,6 +166,26 @@ class Session(
     /** Fix the Bluetooth pairing PIN. Takes effect when the radio next restarts. */
     fun setDevicePin(pin: Int) = transport.send(Commands.setDevicePin(pin))
 
+    /**
+     * Log in to a repeater so it will take commands.
+     *
+     * Addressed by the whole public key, unlike a message. The answer comes back over the
+     * air, so expect seconds rather than milliseconds, and expect nothing at all if the node
+     * is out of range.
+     */
+    fun login(publicKey: ByteArray, password: String) =
+        transport.send(Commands.sendLogin(publicKey, password))
+
+    fun logout(publicKey: ByteArray) = transport.send(Commands.logout(publicKey))
+
+    /**
+     * Send one CLI command to a node already logged in to.
+     *
+     * No acknowledgement is expected for these, so the only sign it worked is the answer.
+     */
+    fun sendCliCommand(recipientPrefix: ByteArray, command: String) =
+        transport.send(Commands.sendCliCommand(recipientPrefix, command))
+
     /** One whole frame, as it came off the radio. */
     fun onFrame(bytes: ByteArray) = handle(Decoder.decode(bytes))
 
@@ -192,7 +229,11 @@ class Session(
 
             is Frame.MessageReceived -> {
                 if (frame.snr.isNaN()) listener.onProtocolProblem(Problem.HANDSHAKE_SKIPPED)
-                listener.onMessage(frame)
+                if (frame.txtType == TxtType.CLI_DATA) {
+                    listener.onCliResponse(frame.senderPrefix.toList(), frame.text)
+                } else {
+                    listener.onMessage(frame)
+                }
                 // Keep pulling until the radio says the queue is empty. A message can also
                 // arrive without a preceding tickle, so this starts the drain either way.
                 draining = true
@@ -230,6 +271,10 @@ class Session(
             }
 
             is Frame.Unhandled -> listener.onProtocolProblem(Problem.UNKNOWN_FRAME)
+
+            is Frame.LoginSucceeded -> listener.onLoggedIn(frame)
+
+            is Frame.LoginFailed -> listener.onLoginRefused(frame.senderPrefix.toList())
 
             is Frame.PacketHeard -> listener.onPacketHeard(frame)
 

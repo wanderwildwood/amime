@@ -16,6 +16,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mudita.mmd.ThemeMMD
 import com.wanderwildwood.amime.mesh.Person
+import com.wanderwildwood.amime.ui.ConsoleScreen
 import com.wanderwildwood.amime.ui.ConversationScreen
 import com.wanderwildwood.amime.ui.PeopleScreen
 import com.wanderwildwood.amime.ui.RadiosScreen
@@ -53,6 +54,18 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
         ask.launch(
             arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN),
         )
+    }
+
+    // Administering a repeater takes over the screen: it is a different job from messaging,
+    // with a different thing on the other end.
+    val admin = state.admin
+    if (admin != null) {
+        ConsoleScreen(
+            admin = admin,
+            onSend = viewModel::sendCommand,
+            onClose = viewModel::endAdmin,
+        )
+        return
     }
 
     val person = open

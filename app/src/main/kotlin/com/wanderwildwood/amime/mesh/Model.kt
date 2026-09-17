@@ -10,6 +10,14 @@ import com.wanderwildwood.amime.protocol.AdvType
  */
 data class Person(
     val prefix: List<Byte>,
+    /**
+     * The whole 32-byte key.
+     *
+     * Kept as well as [prefix] because the two are not interchangeable at the protocol level:
+     * a message is addressed by the prefix and a login by the whole key, and the firmware
+     * answers the wrong one with a bare not-found.
+     */
+    val publicKey: List<Byte> = emptyList(),
     val name: String,
     val type: Int,
     /**
@@ -81,6 +89,8 @@ data class MeshState(
     val people: List<Person> = emptyList(),
     val conversations: Map<List<Byte>, List<Message>> = emptyMap(),
     val batteryMillivolts: Int? = null,
+    /** The node being administered, if a login has been attempted. */
+    val admin: Admin? = null,
     /**
      * Everything the radio has heard off the air this session, readable or not.
      *
@@ -110,4 +120,32 @@ data class Heard(
         bestSnr = if (bestSnr == null || snr > bestSnr) snr else bestSnr,
         bestRssi = if (bestRssi == null || rssi > bestRssi) rssi else bestRssi,
     )
+}
+
+
+/** One line of an administration session with a repeater. */
+data class ConsoleLine(val text: String, val fromUs: Boolean)
+
+/**
+ * A logged-in session with a repeater or room server.
+ *
+ * A repeater has no Bluetooth of its own — the firmware that makes one has no companion
+ * interface at all — so once it is up a pole this is the only way to reach it that does not
+ * involve a ladder.
+ */
+data class Admin(
+    val person: Person,
+    val state: State = State.LOGGING_IN,
+    val lines: List<ConsoleLine> = emptyList(),
+    /** False for a guest login, which connects and is then refused almost everything. */
+    val isAdmin: Boolean = false,
+) {
+    enum class State {
+        /** Sent, and waiting on an answer that travels over the air. */
+        LOGGING_IN,
+        IN,
+
+        /** Refused. The node does not say whether it was the password or a full client table. */
+        REFUSED,
+    }
 }

@@ -33,6 +33,15 @@ object Cmd {
     const val REBOOT = 19
     const val GET_BATT_AND_STORAGE = 20
     const val DEVICE_QUERY = 22
+    const val SEND_RAW_DATA = 25
+
+    /** Log in to a repeater or room server. Addressed by the whole key, not the prefix. */
+    const val SEND_LOGIN = 26
+    const val SEND_STATUS_REQ = 27
+    const val HAS_CONNECTION = 28
+
+    /** Drop a logged-in connection. Also the whole key. */
+    const val LOGOUT = 29
     const val GET_CONTACT_BY_KEY = 30
     const val GET_CHANNEL = 31
     const val SET_CHANNEL = 32

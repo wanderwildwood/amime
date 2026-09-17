@@ -223,6 +223,87 @@ class MeshStoreTest {
         assertEquals(1, store.state.heard.packets)
     }
 
+    // ---- administering a repeater ----
+
+    private fun repeater(): Person {
+        store.onContact(contact("ridge-node", key = 0x11, type = AdvType.REPEATER))
+        return store.state.people.single()
+    }
+
+    @Test
+    fun `a login is pending until the node answers over the air`() {
+        store.beginLogin(repeater())
+        assertEquals(Admin.State.LOGGING_IN, store.state.admin!!.state)
+
+        store.onLoggedIn(Frame.LoginSucceeded(ByteArray(6) { 0x11 }, permissions = 1))
+        assertEquals(Admin.State.IN, store.state.admin!!.state)
+        assertTrue(store.state.admin!!.isAdmin)
+    }
+
+    /** A guest login connects and is then refused almost everything, which is not the same. */
+    @Test
+    fun `permissions of zero is a guest, not an administrator`() {
+        store.beginLogin(repeater())
+        store.onLoggedIn(Frame.LoginSucceeded(ByteArray(6) { 0x11 }, permissions = 0))
+        assertEquals(Admin.State.IN, store.state.admin!!.state)
+        assertFalse(store.state.admin!!.isAdmin)
+    }
+
+    @Test
+    fun `a refusal is recorded rather than left looking slow`() {
+        store.beginLogin(repeater())
+        store.onLoginRefused(List(6) { 0x11 })
+        assertEquals(Admin.State.REFUSED, store.state.admin!!.state)
+    }
+
+    @Test
+    fun `the console keeps what was asked and what came back, in order`() {
+        store.beginLogin(repeater())
+        store.onLoggedIn(Frame.LoginSucceeded(ByteArray(6) { 0x11 }, permissions = 1))
+
+        store.recordCommand("get freq")
+        store.onCliResponse(List(6) { 0x11 }, "> 910.525")
+
+        val lines = store.state.admin!!.lines
+        assertEquals(2, lines.size)
+        assertTrue(lines[0].fromUs)
+        assertEquals("get freq", lines[0].text)
+        assertFalse(lines[1].fromUs)
+        assertEquals("> 910.525", lines[1].text)
+    }
+
+    /** Another node's CLI chatter must not land in this console. */
+    @Test
+    fun `a response from somebody else is ignored`() {
+        store.beginLogin(repeater())
+        store.onLoggedIn(Frame.LoginSucceeded(ByteArray(6) { 0x11 }, permissions = 1))
+        store.onCliResponse(List(6) { 0x77 }, "not for us")
+        assertTrue(store.state.admin!!.lines.isEmpty())
+    }
+
+    @Test
+    fun `losing the radio ends the administration session`() {
+        store.beginLogin(repeater())
+        store.onLoggedIn(Frame.LoginSucceeded(ByteArray(6) { 0x11 }, permissions = 1))
+        store.onDisconnected()
+        assertNull(store.state.admin)
+    }
+
+    /** A CLI answer is not chatter and must not become a conversation. */
+    @Test
+    fun `a CLI response does not create a message thread`() {
+        store.beginLogin(repeater())
+        store.onLoggedIn(Frame.LoginSucceeded(ByteArray(6) { 0x11 }, permissions = 1))
+        store.onCliResponse(List(6) { 0x11 }, "> ok")
+        assertTrue(store.state.conversations.isEmpty())
+    }
+
+    @Test
+    fun `battery is reported in millivolts as the radio gives it`() {
+        store.onBattery(Frame.BattAndStorage(4310, null, null))
+        assertEquals(4310, store.state.batteryMillivolts)
+    }
+
     @Test
     fun `the session becoming ready is what lets the screen send`() {
         assertFalse(store.state.ready)

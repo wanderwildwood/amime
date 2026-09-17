@@ -144,6 +144,55 @@ object Commands {
         return FrameWriter(5).u8(Cmd.SET_DEVICE_PIN).u32(pin.toLong()).build()
     }
 
+    /**
+     * Log in to a repeater or room server, which is what lets you administer one.
+     *
+     * ⚠ This takes the **whole 32-byte public key**, not the six-byte prefix a message is
+     * addressed by. The firmware looks the contact up on the full key here and on the prefix
+     * there, and passing the wrong one gets [Err.NOT_FOUND] rather than anything explanatory.
+     *
+     * A repeater's password is `"password"` until somebody changes it, which is worth doing
+     * before one goes up somewhere that needs a ladder: anyone in radio range can log in to
+     * an untouched one.
+     *
+     * The reply is a [Resp.SENT], then later a [Push.LOGIN_SUCCESS] or [Push.LOGIN_FAIL] when
+     * the far end answers over the air — which on a mesh can be many seconds.
+     */
+    fun sendLogin(publicKey: ByteArray, password: String): ByteArray {
+        require(publicKey.size == Sizes.PUB_KEY) {
+            "a login is addressed by the whole ${Sizes.PUB_KEY}-byte key, got ${publicKey.size}"
+        }
+        return FrameWriter().u8(Cmd.SEND_LOGIN).bytes(publicKey).text(password).build()
+    }
+
+    /** Drop the logged-in connection. Also takes the whole key. */
+    fun logout(publicKey: ByteArray): ByteArray {
+        require(publicKey.size == Sizes.PUB_KEY) {
+            "a logout is addressed by the whole ${Sizes.PUB_KEY}-byte key, got ${publicKey.size}"
+        }
+        return FrameWriter().u8(Cmd.LOGOUT).bytes(publicKey).build()
+    }
+
+    /**
+     * Send one CLI command to a node you are logged in to.
+     *
+     * It goes out as an ordinary text message with [TxtType.CLI_DATA] rather than by some
+     * separate path, and the answer comes back as an ordinary received message with the same
+     * type — so a console is a conversation that happens to be with a machine.
+     *
+     * Two things differ from a plain message and both are the firmware's doing: it replaces
+     * the timestamp with its own RTC, to avoid tripping replay protection on a command sent
+     * twice, and **no acknowledgement is expected**, so silence here is not delivery failure.
+     */
+    fun sendCliCommand(recipientPrefix: ByteArray, command: String, attempt: Int = 0): ByteArray =
+        sendTextMessage(
+            recipientPrefix = recipientPrefix,
+            text = command,
+            timestamp = 0, // replaced by the radio's own clock for CLI data
+            attempt = attempt,
+            txtType = TxtType.CLI_DATA,
+        )
+
     /** Re-advertise this node so others can find it. */
     fun sendSelfAdvert(flood: Boolean = false): ByteArray =
         FrameWriter(2).u8(Cmd.SEND_SELF_ADVERT).u8(if (flood) 1 else 0).build()

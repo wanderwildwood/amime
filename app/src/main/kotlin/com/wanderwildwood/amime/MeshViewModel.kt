@@ -64,6 +64,7 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
             override fun onReady() {
                 session.start()
                 session.syncContacts()
+                session.refreshBattery()
             }
 
             override fun onFrame(frame: ByteArray) = session.onFrame(frame)
@@ -139,6 +140,32 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
         stopScanning()
         transport.connect(device)
     }
+
+    /**
+     * Start administering a repeater.
+     *
+     * The password is the node's, not this phone's, and a repeater that nobody has touched
+     * still has the firmware default.
+     */
+    fun beginAdmin(person: Person, password: String) {
+        store.beginLogin(person)
+        session.login(person.publicKey.toByteArray(), password)
+    }
+
+    /** Send one CLI line to the node being administered. */
+    fun sendCommand(command: String) {
+        val admin = state.value.admin ?: return
+        store.recordCommand(command)
+        session.sendCliCommand(admin.person.prefix.toByteArray(), command)
+    }
+
+    fun endAdmin() {
+        state.value.admin?.let { session.logout(it.person.publicKey.toByteArray()) }
+        store.endAdmin()
+    }
+
+    /** Ask the radio how much battery it has left. Worth knowing for a node that travels. */
+    fun refreshBattery() = session.refreshBattery()
 
     fun send(person: Person, text: String, now: Long = System.currentTimeMillis() / 1000) {
         val prefix = person.prefix.toByteArray()

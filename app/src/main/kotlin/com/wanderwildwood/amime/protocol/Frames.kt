@@ -181,6 +181,44 @@ sealed interface Frame {
     data class SendConfirmed(val ackHash: Long, val roundTripMs: Long) : Frame
 
     /**
+     * A repeater or room server accepted a login.
+     *
+     * [isAdmin] is what decides whether CLI commands will be obeyed or refused; a guest login
+     * connects and can do almost nothing. [serverTimestamp] and [firmwareLevel] are absent on
+     * the legacy eight-byte form that older repeaters send.
+     */
+    data class LoginSucceeded(
+        val senderPrefix: ByteArray,
+        val permissions: Int,
+        val serverTimestamp: Long? = null,
+        val aclPermissions: Int? = null,
+        val firmwareLevel: Int? = null,
+    ) : Frame {
+        val isAdmin: Boolean get() = permissions != 0
+
+        override fun equals(other: Any?): Boolean =
+            this === other || (other is LoginSucceeded &&
+                senderPrefix.contentEquals(other.senderPrefix) &&
+                permissions == other.permissions && serverTimestamp == other.serverTimestamp &&
+                aclPermissions == other.aclPermissions && firmwareLevel == other.firmwareLevel)
+
+        override fun hashCode(): Int = 31 * permissions + senderPrefix.contentHashCode()
+    }
+
+    /**
+     * A login was refused.
+     *
+     * Carries no reason. A wrong password and a node that has run out of client slots look
+     * identical from here.
+     */
+    data class LoginFailed(val senderPrefix: ByteArray) : Frame {
+        override fun equals(other: Any?): Boolean =
+            this === other || (other is LoginFailed && senderPrefix.contentEquals(other.senderPrefix))
+
+        override fun hashCode(): Int = senderPrefix.contentHashCode()
+    }
+
+    /**
      * A packet the radio heard off the air, with how well it heard it.
      *
      * Pushed for **every** raw packet received, whoever it was from and whoever it was for —

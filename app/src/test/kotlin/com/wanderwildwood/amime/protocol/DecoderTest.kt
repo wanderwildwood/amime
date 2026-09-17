@@ -324,6 +324,28 @@ class DecoderTest {
     }
 
     @Test
+    fun `a login answer says whether it granted administration`() {
+        val prefix = ByteArray(Sizes.PUB_KEY_PREFIX) { 0x11 }
+        val guest = Decoder.decode(frame(Push.LOGIN_SUCCESS, 0, prefix)) as Frame.LoginSucceeded
+        assertFalse("permissions of zero is a guest", guest.isAdmin)
+        assertNull("the legacy frame carries no clock", guest.serverTimestamp)
+
+        val full = frame(Push.LOGIN_SUCCESS, 1, prefix, u32(1_757_000_000), 3, 13)
+        val admin = Decoder.decode(full) as Frame.LoginSucceeded
+        assertTrue(admin.isAdmin)
+        assertEquals(1_757_000_000L, admin.serverTimestamp)
+        assertEquals(3, admin.aclPermissions)
+        assertEquals(13, admin.firmwareLevel)
+    }
+
+    @Test
+    fun `a refused login says who refused and nothing else`() {
+        val f = frame(Push.LOGIN_FAIL, 0, ByteArray(Sizes.PUB_KEY_PREFIX) { 0x22 })
+        val failed = Decoder.decode(f) as Frame.LoginFailed
+        assertArrayEquals(ByteArray(6) { 0x22 }, failed.senderPrefix)
+    }
+
+    @Test
     fun `a send is accepted, which is not the same as delivered`() {
         val sent = Decoder.decode(frame(Resp.SENT, 1, u32(0xABCD), u32(9000))) as Frame.Sent
         assertTrue(sent.byFlood)

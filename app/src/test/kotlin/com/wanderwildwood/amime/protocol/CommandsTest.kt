@@ -139,6 +139,44 @@ class CommandsTest {
         assertThrows(IllegalArgumentException::class.java) { Commands.setRadioParams(910_525, 62_500, 7, 9) }
     }
 
+    /**
+     * The asymmetry that would otherwise cost an afternoon: a message is addressed by six
+     * bytes and a login by thirty-two, and getting it wrong returns a bare not-found.
+     */
+    @Test
+    fun `a login is addressed by the whole key, not the prefix`() {
+        val key = ByteArray(Sizes.PUB_KEY) { (it + 1).toByte() }
+        val frame = Commands.sendLogin(key, "password")
+        assertEquals(Cmd.SEND_LOGIN, frame.u8(0))
+        assertArrayEquals(key, frame.copyOfRange(1, 1 + Sizes.PUB_KEY))
+        assertEquals("password", String(frame, 1 + Sizes.PUB_KEY, frame.size - 1 - Sizes.PUB_KEY))
+
+        val failure = assertThrows(IllegalArgumentException::class.java) {
+            Commands.sendLogin(ByteArray(Sizes.PUB_KEY_PREFIX), "password")
+        }
+        assertTrue(failure.message!!.contains("whole"))
+    }
+
+    @Test
+    fun `logout also takes the whole key`() {
+        val key = ByteArray(Sizes.PUB_KEY) { 7 }
+        assertEquals(Cmd.LOGOUT, Commands.logout(key).u8(0))
+        assertEquals(1 + Sizes.PUB_KEY, Commands.logout(key).size)
+        assertThrows(IllegalArgumentException::class.java) { Commands.logout(ByteArray(6)) }
+    }
+
+    /**
+     * A CLI command is an ordinary text message wearing a different type byte. If that type
+     * ever went out as PLAIN, the repeater would file an administrative command as chatter.
+     */
+    @Test
+    fun `a CLI command is a text message marked as CLI data`() {
+        val frame = Commands.sendCliCommand(ByteArray(6) { 0x11 }, "get freq")
+        assertEquals(Cmd.SEND_TXT_MSG, frame.u8(0))
+        assertEquals(TxtType.CLI_DATA, frame.u8(1))
+        assertEquals("get freq", String(frame, 13, frame.size - 13))
+    }
+
     @Test
     fun `single-byte commands are a single byte`() {
         assertArrayEquals(byteArrayOf(10), Commands.syncNextMessage())

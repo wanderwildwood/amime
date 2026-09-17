@@ -44,6 +44,14 @@ object Decoder {
 
             Resp.BATT_AND_STORAGE -> if (frame.size >= 3) battery(frame) else short()
 
+            Push.LOGIN_SUCCESS -> if (frame.size >= 8) loginSucceeded(frame) else short()
+            Push.LOGIN_FAIL ->
+                if (frame.size >= 8) {
+                    Frame.LoginFailed(frame.copyOfRange(2, 2 + Sizes.PUB_KEY_PREFIX))
+                } else {
+                    short()
+                }
+
             Push.LOG_RX_DATA ->
                 if (frame.size >= 3) {
                     Frame.PacketHeard(
@@ -61,6 +69,20 @@ object Decoder {
             else -> Frame.Unhandled(code, frame)
         }
     }
+
+    /**
+     * Two layouts share this code. The eight-byte one is what a legacy repeater sends and
+     * carries nothing but the prefix; the longer one adds the server's clock and its firmware
+     * level. Reading the longer fields off a short frame is why the length is checked rather
+     * than assumed.
+     */
+    private fun loginSucceeded(f: ByteArray) = Frame.LoginSucceeded(
+        permissions = f.u8(1),
+        senderPrefix = f.copyOfRange(2, 2 + Sizes.PUB_KEY_PREFIX),
+        serverTimestamp = if (f.size >= 12) f.u32(8) else null,
+        aclPermissions = if (f.size >= 13) f.u8(12) else null,
+        firmwareLevel = if (f.size >= 14) f.u8(13) else null,
+    )
 
     private fun deviceInfo(f: ByteArray) = Frame.DeviceInfo(
         firmwareVersionCode = f.u8(1),

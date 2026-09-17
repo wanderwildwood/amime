@@ -58,7 +58,20 @@ class MeshStore(
     }
 
     /** Forget everything from a connection that has gone. */
-    fun onDisconnected() = update { copy(ready = false) }
+    fun onDisconnected() = update { copy(ready = false, admin = null) }
+
+    /** Begin administering a repeater. The answer comes back over the air, so this waits. */
+    fun beginLogin(person: Person) = update {
+        copy(admin = Admin(person = person, state = Admin.State.LOGGING_IN))
+    }
+
+    /** Record a command as sent, so the console shows it before any answer arrives. */
+    fun recordCommand(command: String) = update {
+        val current = admin ?: return@update this
+        copy(admin = current.copy(lines = current.lines + ConsoleLine(command, fromUs = true)))
+    }
+
+    fun endAdmin() = update { copy(admin = null) }
 
     // ---- what the radio says ----
 
@@ -70,6 +83,7 @@ class MeshStore(
         val prefix = contact.prefix.toList()
         val person = Person(
             prefix = prefix,
+            publicKey = contact.publicKey.toList(),
             name = contact.name,
             type = contact.type,
             // An empty path means the radio has no route and reaches this node by flooding.
@@ -124,6 +138,24 @@ class MeshStore(
         // there is none, the refusal belongs to some other command and no message is wrong.
         val target = unanswered.removeFirstOrNull() ?: return
         setDelivery(target, Delivery.REFUSED)
+    }
+
+    override fun onLoggedIn(login: Frame.LoginSucceeded) = update {
+        val current = admin ?: return@update this
+        if (login.senderPrefix.toList() != current.person.prefix) return@update this
+        copy(admin = current.copy(state = Admin.State.IN, isAdmin = login.isAdmin))
+    }
+
+    override fun onLoginRefused(from: List<Byte>) = update {
+        val current = admin ?: return@update this
+        if (from != current.person.prefix) return@update this
+        copy(admin = current.copy(state = Admin.State.REFUSED))
+    }
+
+    override fun onCliResponse(from: List<Byte>, text: String) = update {
+        val current = admin ?: return@update this
+        if (from != current.person.prefix) return@update this
+        copy(admin = current.copy(lines = current.lines + ConsoleLine(text, fromUs = false)))
     }
 
     override fun onPacketHeard(packet: Frame.PacketHeard) = update {
