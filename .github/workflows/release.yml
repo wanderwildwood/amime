@@ -68,17 +68,8 @@ jobs:
       # every other wrong key and for an unsigned build, which is why it is not used here.
       - name: Verify the signing certificate
         env:
-          # Filled in from the real keystore before the first release, with
-          #   keytool -list -v -keystore signing/signing.keystore | grep SHA256
-          # It cannot be a copy of another app's: each repo is signed with its own key, and
-          # a fingerprint borrowed from a sibling would pass this check while shipping an
-          # APK nobody can update.
-          EXPECTED: SET-ME-FROM-THE-REAL-KEYSTORE
+          EXPECTED: e7d6b9c642b199d6083ba08daacfe90a4254dc7ec1bbdc122ab5f240a71a2c73
         run: |
-          if [ "$EXPECTED" = "SET-ME-FROM-THE-REAL-KEYSTORE" ]; then
-            echo "::error::The expected signing certificate has not been set - refusing to release an APK whose key nobody has checked."
-            exit 1
-          fi
           apk=$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk')
           apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
           certs=$("$apksigner" verify --print-certs "$apk")
