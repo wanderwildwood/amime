@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.mudita.mmd.components.buttons.OutlinedButtonMMD
 import com.mudita.mmd.components.lazy.LazyColumnMMD
 import com.mudita.mmd.components.text.TextMMD
@@ -30,6 +31,7 @@ import com.wanderwildwood.amime.MeshViewModel
 fun RadiosScreen(
     radios: List<MeshViewModel.Radio>,
     scanning: Boolean,
+    problem: String?,
     onScan: () -> Unit,
     onConnect: (MeshViewModel.Radio) -> Unit,
 ) {
@@ -38,6 +40,16 @@ fun RadiosScreen(
         topBar = { TopAppBarMMD(title = { TextMMD(text = "Radios") }) },
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+            // The app knowing something is wrong and showing nothing is worse than the
+            // trouble itself: a radio that will not talk looks identical to one that is not
+            // there, and only this line tells them apart.
+            problem?.let {
+                TextMMD(
+                    text = it,
+                    fontSize = 14.sp,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                )
+            }
             if (radios.isEmpty()) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     TextMMD(

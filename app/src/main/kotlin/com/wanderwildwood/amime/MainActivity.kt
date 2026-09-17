@@ -41,6 +41,7 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
     // cannot find the radio without SCAN and cannot talk to it without CONNECT.
     val radios by viewModel.radios.collectAsStateWithLifecycle()
     val scanning by viewModel.scanning.collectAsStateWithLifecycle()
+    val problem by viewModel.problem.collectAsStateWithLifecycle()
 
     val ask = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -59,6 +60,7 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
         RadiosScreen(
             radios = radios,
             scanning = scanning,
+            problem = problem,
             onScan = viewModel::findRadios,
             onConnect = { viewModel.connect(it.device) },
         )
