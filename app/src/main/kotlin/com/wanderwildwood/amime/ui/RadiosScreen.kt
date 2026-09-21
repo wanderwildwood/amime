@@ -10,6 +10,10 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -38,9 +42,22 @@ fun RadiosScreen(
     onScan: () -> Unit,
     onConnect: (MeshViewModel.Radio) -> Unit,
 ) {
+    var aboutOpen by remember { mutableStateOf(false) }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surface,
-        topBar = { TopAppBarMMD(title = { TextMMD(text = stringResource(R.string.radios_title)) }) },
+        topBar = {
+            TopAppBarMMD(
+                title = { TextMMD(text = stringResource(R.string.radios_title)) },
+                // Here as well as on the list of people, because this is the screen an app
+                // with no radio yet never gets past — and About is the one thing a stranger
+                // looks for before trusting a thing they have just installed. Behind a
+                // connection it would be unreachable by exactly the reader who wants it.
+                actions = {
+                    BarButton(Icons.Info, stringResource(R.string.about)) { aboutOpen = true }
+                },
+            )
+        },
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             // The app knowing something is wrong and showing nothing is worse than the
@@ -100,6 +117,8 @@ fun RadiosScreen(
             }
         }
     }
+
+    if (aboutOpen) AboutDialog(onDismiss = { aboutOpen = false })
 }
 
 @Composable

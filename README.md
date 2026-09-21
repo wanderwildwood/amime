@@ -8,39 +8,40 @@ no internet.
 *Amime* is 網目 — the eye of a net, the gap the weave makes. Which is the shape of the thing:
 not the nodes but the spaces they hold open between them.
 
-Not a fork. Written from scratch in Kotlin, and where it needs a screen it will use Mudita's
-own [MMD](https://github.com/mudita/MMD) design system, as the rest of these apps do.
-
-<!-- Four screenshots go here before the first release, in the table below, taken on the
-     `kompakt` emulator AVD at 480x752 rather than on a phone. They cannot be taken yet:
-     three of the four want a radio with a contact in it, and the emulator has no Bluetooth
-     to a real node. The shots wanted are the radio picker, the people list with somebody in
-     it, a conversation showing a message still waiting against one acknowledged, and the
-     About.
+Not a fork. Written from scratch in Kotlin, on Mudita's own
+[MMD](https://github.com/mudita/MMD) design system, as the rest of these apps are.
 
 | | |
 |---|---|
-| ![Choosing a radio](screenshots/1-radios.png) | ![Who the radio knows](screenshots/2-people.png) |
-| ![How far a message got](screenshots/3-conversation.png) | ![What it does and does not claim](screenshots/4-about.png) |
--->
+| ![Choosing a radio](screenshots/1-radios.png) | ![What it does and does not claim](screenshots/2-about.png) |
+
+<!-- Two of the four. The other two want a radio with a contact in it — the people list with
+     somebody in it, and a conversation showing a message still waiting against one
+     acknowledged — and there is no second node yet to be that somebody. They go in when
+     there is one; the emulator has no Bluetooth to a real radio, so they cannot be staged. -->
 
 ## Where this is up to
 
-**Version 0.1.0.** The protocol, the session that drives it, the Bluetooth transport
-underneath and two screens: 71 tests, green. It builds, installs and launches.
+**Version 0.1.0.** 105 tests, green, and it has been talking to a radio for days rather than
+in theory. The commands and frames are written against `examples/companion_radio/MyMesh.cpp`
+in the MeshCore firmware rather than against the protocol documentation, for a reason given
+below. The session — handshake order, draining the message queue, matching an acknowledgement
+to the send that expected it — has no Android in it at all, so those rules are tested without
+a radio or a phone.
 
-What works is the part that decides whether anything else can. The commands and frames are
-written against `examples/companion_radio/MyMesh.cpp` in the MeshCore firmware rather than
-against the protocol documentation, for a reason given below. The session — handshake order,
-draining the message queue, matching an acknowledgement to the send that expected it — has no
-Android in it at all, so those rules are tested without a radio or a phone.
+Proven against a ThinkNode M5 on companion-v1.16.0: the handshake, the contact sync, reading
+and setting the radio parameters, the battery, and counting what the antenna hears whether or
+not any of it was readable.
 
-**None of it has touched real hardware yet.** The node here is a ThinkNode M5 on
-companion-v1.16.0, and the first thing that will be learnt from it is which of these
-assumptions is wrong. There is no app icon either: one is drawn by hand and looked at before
-it ships, so for now this wears the system default.
+**It has never sent or received a message.** Not because that path is untried in the
+laboratory sense but because there is nobody to send one to: this is the only node here, it
+has heard nothing since moving to 915 MHz, and a contact list with nothing in it is a
+conversation screen that has never run against a peer. A repeater is on its way, and the
+first real question it answers is that one.
 
-Still to come: settings, an About, and whatever the first real connection proves wrong.
+Still to come, and waiting on the same thing: sending, the four delivery states against a
+real acknowledgement, and administering a repeater over the air — which is built, and which
+has never been exercised against a repeater because there has not been one.
 
 ## The documentation is wrong in at least one place that matters
 
@@ -120,6 +121,18 @@ Two more, both silent when wrong:
   operation the stack refuses outright — no callback is coming for one of those, so a queue
   that waits for one waits for good.
 
+## What it keeps, and where
+
+Messages are written to a plain file of tab-separated lines in the app's own storage, because
+the radio does not keep a copy: a message it has handed over is a message it no longer holds,
+so an app that kept them only in memory would lose every one of them the next time Android
+reclaimed the process. A message that was still in flight when that happened comes back in a
+state of its own rather than as one still waiting — the acknowledgement it wanted went past
+while nothing was listening, and saying it is still pending would be a claim nobody can make.
+
+Nothing else is stored. Contacts come off the radio at every connection, which is where they
+live; what the antenna heard is about this session and does not outlast it.
+
 ## Building
 
 ```
@@ -128,6 +141,15 @@ Two more, both silent when wrong:
 
 There is no checked-in signing key and no fallback. Without `signing/signing.keystore` a
 release build comes out unsigned, which will not install anywhere.
+
+## Getting it, and keeping it
+
+Download <https://github.com/wanderwildwood/amime/releases/latest/download/amime.apk> and
+sideload it. That address always points at the newest release, and every release publishes a
+`.sha256` beside the APK if you would rather check than trust.
+
+**The application id is settled** — updates install over what you have, keeping anything the
+app has stored.
 
 ## Licence
 
