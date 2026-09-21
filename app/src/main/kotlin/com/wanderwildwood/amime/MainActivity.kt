@@ -48,7 +48,7 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
     val ask = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { granted ->
-        if (granted.values.all { it }) viewModel.findRadios()
+        if (granted.values.all { it }) viewModel.findRadios() else viewModel.bluetoothRefused()
     }
 
     LaunchedEffect(Unit) {

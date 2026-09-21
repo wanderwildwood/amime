@@ -1,11 +1,15 @@
 package com.wanderwildwood.amime
 
+import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Application
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.Context
+import android.content.pm.PackageManager
 import androidx.annotation.StringRes
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.wanderwildwood.amime.ble.BleTransport
@@ -16,6 +20,7 @@ import com.wanderwildwood.amime.mesh.MeshStore
 import com.wanderwildwood.amime.mesh.Message
 import com.wanderwildwood.amime.mesh.MessageLog
 import com.wanderwildwood.amime.mesh.Person
+import com.wanderwildwood.amime.protocol.Sizes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -100,6 +105,10 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             override fun onError(message: String) {
+                // Whatever it was, the phone is not in the middle of pairing any more.
+                // Leaving that line up would have the screen explaining a PIN nobody is
+                // being asked for.
+                _pairing.value = false
                 _problem.value = message
             }
         },
@@ -127,6 +136,24 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun say(@StringRes line: Int): String = getApplication<Application>().getString(line)
+
+    /**
+     * Whether the two Bluetooth permissions have actually been granted.
+     *
+     * Both or neither: the app cannot find a radio without SCAN and cannot talk to one
+     * without CONNECT, so having one of them is the same as having none.
+     */
+    private fun mayUseBluetooth(): Boolean = listOf(
+        Manifest.permission.BLUETOOTH_CONNECT,
+        Manifest.permission.BLUETOOTH_SCAN,
+    ).all {
+        ContextCompat.checkSelfPermission(getApplication(), it) == PackageManager.PERMISSION_GRANTED
+    }
+
+    /** Say so when the phone was asked and said no, rather than showing an empty room. */
+    fun bluetoothRefused() {
+        _problem.value = say(R.string.problem_no_permission)
+    }
 
     private val adapter: BluetoothAdapter?
         get() = (getApplication<Application>()
@@ -156,14 +183,29 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
      * this phone already knows. The scan is for the first time, and for a radio that has been
      * reset and forgotten this phone — which looks exactly like a radio that was never here.
      */
+    // Lint cannot see through [mayUseBluetooth] to the check inside it, and inlining the
+    // check at all four call sites to satisfy it would be four copies of one question. Every
+    // one of them is also inside a runCatching, so a permission revoked between the check and
+    // the call costs a missing radio rather than a crash.
+    @SuppressLint("MissingPermission")
     fun findRadios() {
         // A fresh look clears the last complaint: whatever it was, this is the answer to
         // whether it is still true.
         _problem.value = null
 
-        val bonded = runCatching { adapter?.bondedDevices.orEmpty() }.getOrDefault(emptySet())
-            .filter { it.name?.startsWith(MESHCORE_PREFIX) == true }
-            .map { Radio(it, it.name ?: it.address, bonded = true) }
+        // Asked for rather than assumed. Everything below throws SecurityException without
+        // it, and a phone where it was refused would otherwise show an empty list and let
+        // the reader conclude there was no radio in the room.
+        if (!mayUseBluetooth()) {
+            _problem.value = say(R.string.problem_no_permission)
+            return
+        }
+
+        val bonded = runCatching {
+            adapter?.bondedDevices.orEmpty()
+                .filter { it.name?.startsWith(MESHCORE_PREFIX) == true }
+                .map { Radio(it, it.name ?: it.address, bonded = true) }
+        }.getOrDefault(emptyList())
         _radios.value = bonded
 
         _scanning.value = true
@@ -186,7 +228,8 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
             _radios.value = _radios.value + Radio(
                 device = device,
                 name = name ?: device.address,
-                bonded = device.bondState == BluetoothDevice.BOND_BONDED,
+                bonded = runCatching { device.bondState == BluetoothDevice.BOND_BONDED }
+                    .getOrDefault(false),
                 rssi = rssi,
             )
         }
@@ -209,6 +252,13 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
      * still has the firmware default.
      */
     fun beginAdmin(person: Person, password: String) {
+        // A login is addressed by the whole key, and a contact that arrived without one
+        // cannot be logged in to. The command would refuse the argument by throwing, which
+        // on a press is a crash rather than an answer.
+        if (person.publicKey.size != Sizes.PUB_KEY) {
+            _problem.value = say(R.string.problem_no_key)
+            return
+        }
         store.beginLogin(person)
         session.login(person.publicKey.toByteArray(), password)
     }
@@ -239,6 +289,10 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
     override fun onCleared() {
         scanner.stop()
         transport.disconnect()
+        // The writer runs in this scope and the scope is about to be cancelled, so anything
+        // that arrived in the last moment would go with it. A few kilobytes written on the
+        // way out is the cheapest way to make the last message as safe as the rest.
+        runCatching { log.write(state.value.conversations) }
         super.onCleared()
     }
 

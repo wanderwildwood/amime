@@ -84,12 +84,17 @@ fun RadiosScreen(
             if (radios.isEmpty()) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     TextMMD(
-                        text = if (scanning) {
-                            stringResource(R.string.radios_looking_sentence)
-                        } else {
+                        text = when {
+                            scanning -> stringResource(R.string.radios_looking_sentence)
+                            // Where something went wrong, the line above has already said
+                            // what. Saying "no radio found" under it would be the screen
+                            // reporting the result of a search that never happened — which
+                            // is exactly the case where somebody goes looking at the radio
+                            // instead of at the permission they refused.
+                            problem != null -> ""
                             // Two different things look the same from here, and neither is
                             // worth guessing between on the reader's behalf.
-                            stringResource(R.string.radios_none)
+                            else -> stringResource(R.string.radios_none)
                         },
                         style = MaterialTheme.typography.titleSmall,
                         modifier = Modifier.padding(horizontal = 24.dp),

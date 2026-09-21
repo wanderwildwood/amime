@@ -19,6 +19,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.mudita.mmd.components.buttons.OutlinedButtonMMD
@@ -84,9 +85,9 @@ fun ConversationScreen(
             if (length > Sizes.MAX_TEXT - NEARLY) {
                 TextMMD(
                     text = if (overBy > 0) {
-                        stringResource(R.string.conversation_too_many, overBy)
+                        pluralStringResource(R.plurals.conversation_too_many, overBy, overBy)
                     } else {
-                        stringResource(R.string.conversation_left, -overBy)
+                        pluralStringResource(R.plurals.conversation_left, -overBy, -overBy)
                     },
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),

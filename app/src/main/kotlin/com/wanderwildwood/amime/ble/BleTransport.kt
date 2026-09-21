@@ -12,6 +12,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.util.Log
+import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import com.wanderwildwood.amime.BuildConfig
 import com.wanderwildwood.amime.R
@@ -122,7 +123,7 @@ class BleTransport(
         // at later from a reply that makes no sense.
         val room = negotiatedMtu - ATT_HEADER
         if (negotiatedMtu > 0 && frame.size > room) {
-            fail(R.string.ble_frame_too_long, frame.size, room)
+            failCount(R.plurals.ble_frame_too_long, frame.size, frame.size, room)
             return
         }
         log { "send ${frame.size} bytes: ${frame.joinToString(" ") { "%02x".format(it) }}" }
@@ -215,7 +216,7 @@ class BleTransport(
             // A refused request is survivable — the link still works, it just cannot carry a
             // long frame whole, and a short frame decodes to Frame.Malformed rather than to
             // something plausible and wrong.
-            if (mtu < MIN_USABLE_MTU) fail(R.string.ble_small_mtu, mtu)
+            if (mtu < MIN_USABLE_MTU) failCount(R.plurals.ble_small_mtu, mtu, mtu)
             negotiatedMtu = mtu
             queue.completeCurrent()
             gatt.discoverServices()
@@ -319,6 +320,11 @@ class BleTransport(
 
     private fun fail(@StringRes reason: Int, vararg values: Any) {
         listener.onError(context.getString(reason, *values))
+    }
+
+    /** The same, where the sentence turns on how many of something there are. */
+    private fun failCount(@PluralsRes reason: Int, count: Int, vararg values: Any) {
+        listener.onError(context.resources.getQuantityString(reason, count, *values))
     }
 
     private companion object {

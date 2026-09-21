@@ -50,8 +50,14 @@
     <string name="conversation_back">Back</string>
     <string name="conversation_send">Send</string>
     <!-- Shown only near the limit: how many bytes are left, or how many are over it. -->
-    <string name="conversation_left">%1$d left</string>
-    <string name="conversation_too_many">%1$d too many</string>
+    <plurals name="conversation_left">
+        <item quantity="one">%1$d left</item>
+        <item quantity="other">%1$d left</item>
+    </plurals>
+    <plurals name="conversation_too_many">
+        <item quantity="one">%1$d too many</item>
+        <item quantity="other">%1$d too many</item>
+    </plurals>
     <string name="message_refused">The radio would not send this</string>
     <string name="message_no_confirmation">Sent; there will be no confirmation</string>
     <string name="message_sending">Sending</string>
@@ -92,17 +98,25 @@
     <string name="problem_truncated">Part of a message was lost between the radio and the phone.</string>
     <string name="problem_bluetooth_off">Bluetooth is off.</string>
     <string name="problem_scan_refused">Android would not start a scan. It limits how often an app may look; half a minute usually clears it.</string>
+    <string name="problem_no_permission">Without permission to use Bluetooth this cannot look for a radio. Android\'s settings for this app is where it is given.</string>
+    <string name="problem_no_key">This contact arrived without a full key, so there is no way to log in to it.</string>
     <string name="problem_not_saving">Messages are not being saved on this phone.</string>
 
     <string name="ble_refused">The Bluetooth stack would not take another operation.</string>
     <string name="ble_not_connected">Not connected to a radio.</string>
     <!-- %1$d is the size of the frame, %2$d what the link will carry. -->
-    <string name="ble_frame_too_long">A frame of %1$d bytes does not fit in %2$d.</string>
+    <plurals name="ble_frame_too_long">
+        <item quantity="one">A frame of %1$d byte does not fit in %2$d.</item>
+        <item quantity="other">A frame of %1$d bytes does not fit in %2$d.</item>
+    </plurals>
     <string name="ble_pairing_failed">Pairing failed or was refused.</string>
     <string name="ble_no_service">This device has no Nordic UART service.</string>
     <string name="ble_missing_characteristic">The UART service is missing a characteristic.</string>
     <!-- %1$d is the size the link settled on. -->
-    <string name="ble_small_mtu">The link carries only %1$d bytes, which is not a whole frame.</string>
+    <plurals name="ble_small_mtu">
+        <item quantity="one">The link carries only %1$d byte, which is not a whole frame.</item>
+        <item quantity="other">The link carries only %1$d bytes, which is not a whole frame.</item>
+    </plurals>
     <string name="ble_no_cccd">The radio has nowhere to be asked for notifications, so it will stay silent.</string>
     <!-- %1$d is the Bluetooth stack\'s own number for what went wrong. -->
     <string name="ble_notifications_refused">Notifications could not be turned on (%1$d).</string>
