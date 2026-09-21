@@ -1,4 +1,110 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Every word this app says to a person, so that somebody who speaks a language it does not
+    can put it into theirs without touching Kotlin. Nothing here is translated yet; the point
+    of the file is that it now can be.
+
+    What is deliberately not here: the names of the two things it talks about. MeshCore is a
+    product and Nordic UART is a specification, and neither is translated anywhere else.
+-->
 <resources>
     <string name="app_name">Mesh</string>
+
+    <!-- Choosing a radio -->
+    <string name="radios_title">Radios</string>
+    <string name="radios_looking_sentence">Looking.</string>
+    <string name="radios_none">No radio found. It may be out of range, or switched off.</string>
+    <string name="radios_look_again">Look again</string>
+    <string name="radios_looking">Looking</string>
+    <!-- The signal strength of a radio that has not been connected to yet, in dBm. -->
+    <string name="radios_signal">%1$d dBm</string>
+    <!-- %1$d is the six-digit PIN the firmware ships with. -->
+    <string name="radios_pairing">Pairing. The PIN is the radio\'s own: a node with a screen shows it, and one without has %1$d until it is changed.</string>
+
+    <!-- Everyone the radio knows -->
+    <string name="people_repeater">Repeater</string>
+    <string name="people_has_messages">Has messages</string>
+    <string name="people_not_connected">Not connected to a radio.</string>
+    <string name="people_nothing_heard">Nobody yet, and nothing at all on the air since connecting.</string>
+    <!-- %1$d is a count of packets; %2$s is either empty or the strongest reading below. -->
+    <plurals name="people_heard">
+        <item quantity="one">Nobody yet, but %1$d packet heard since connecting%2$s. Something is transmitting in range; none of it a readable advert.</item>
+        <item quantity="other">Nobody yet, but %1$d packets heard since connecting%2$s. Something is transmitting in range; none of it a readable advert.</item>
+    </plurals>
+    <string name="people_heard_strongest">, strongest %1$.1f dB</string>
+
+    <!-- The radio\'s battery: volts, then roughly what they mean. -->
+    <string name="battery">%1$.2f V, %2$s</string>
+    <string name="battery_full">full</string>
+    <string name="battery_good">good</string>
+    <string name="battery_getting_low">getting low</string>
+    <string name="battery_low">low</string>
+
+    <!-- Logging in to a repeater -->
+    <string name="login_title">Log in to %1$s</string>
+    <string name="login_whose_password">The node\'s own password, not this phone\'s.</string>
+    <string name="login_cancel">Cancel</string>
+    <string name="login_in">Log in</string>
+
+    <!-- A thread -->
+    <string name="conversation_back">Back</string>
+    <string name="conversation_send">Send</string>
+    <!-- Shown only near the limit: how many bytes are left, or how many are over it. -->
+    <string name="conversation_left">%1$d left</string>
+    <string name="conversation_too_many">%1$d too many</string>
+    <string name="message_refused">The radio would not send this</string>
+    <string name="message_no_confirmation">Sent; there will be no confirmation</string>
+    <string name="message_sending">Sending</string>
+    <string name="message_waiting">Waiting for a confirmation</string>
+    <string name="message_unresolved">Sent before this app was last closed; no answer was ever seen</string>
+    <string name="message_through_mesh">Through the mesh</string>
+    <string name="message_weak_signal">Weak signal</string>
+    <!-- Appended to either of the two lines above. -->
+    <string name="message_signal">, %1$.1f dB</string>
+
+    <!-- Administering a repeater -->
+    <string name="console_close">Close</string>
+    <string name="console_logging_in">Logging in. The answer comes back over the air.</string>
+    <string name="console_refused">Refused. It does not say whether that was the password or a full node.</string>
+    <string name="console_administrator">Logged in as administrator.</string>
+    <string name="console_guest">Logged in as a guest, which can do very little.</string>
+    <!-- `help` is typed at the repeater exactly as it appears and is not translated. -->
+    <string name="console_nothing_asked">Nothing asked yet. `help` lists what it will answer.</string>
+    <string name="console_send">Send</string>
+
+    <!-- About -->
+    <string name="about">About</string>
+    <!-- %1$s is the version, as 0.1.0. -->
+    <string name="about_version">Mesh %1$s</string>
+    <string name="about_what">A companion for a MeshCore radio. Messages go over Bluetooth to the radio beside you and out through the mesh.</string>
+    <string name="about_reach">Nothing here touches the internet. There is no account, no server and no carrier — only the radio, and whatever it can reach.</string>
+    <string name="about_licence">GNU General Public License v3 only</string>
+    <string name="about_meshcore">MeshCore\'s protocol, implemented from reading its source. MeshCore itself is MIT and none of it is copied here.</string>
+    <string name="about_icons">Icons from Material Symbols, Apache 2.0</string>
+    <string name="about_llama">Feed the llamas</string>
+    <string name="about_no_browser">There is no browser on this phone to open that with.</string>
+    <string name="about_close">Close</string>
+
+    <!-- What went wrong. All of these are shown to a person, not logged. -->
+    <!-- %1$s is one of the lines below. -->
+    <string name="problem_tap_to_clear">%1$s — tap to clear</string>
+    <string name="problem_old_format">The radio is answering in an older format; messages may be unreadable.</string>
+    <string name="problem_truncated">Part of a message was lost between the radio and the phone.</string>
+    <string name="problem_bluetooth_off">Bluetooth is off.</string>
+    <string name="problem_scan_refused">Android would not start a scan. It limits how often an app may look; half a minute usually clears it.</string>
+    <string name="problem_not_saving">Messages are not being saved on this phone.</string>
+
+    <string name="ble_refused">The Bluetooth stack would not take another operation.</string>
+    <string name="ble_not_connected">Not connected to a radio.</string>
+    <!-- %1$d is the size of the frame, %2$d what the link will carry. -->
+    <string name="ble_frame_too_long">A frame of %1$d bytes does not fit in %2$d.</string>
+    <string name="ble_pairing_failed">Pairing failed or was refused.</string>
+    <string name="ble_no_service">This device has no Nordic UART service.</string>
+    <string name="ble_missing_characteristic">The UART service is missing a characteristic.</string>
+    <!-- %1$d is the size the link settled on. -->
+    <string name="ble_small_mtu">The link carries only %1$d bytes, which is not a whole frame.</string>
+    <string name="ble_no_cccd">The radio has nowhere to be asked for notifications, so it will stay silent.</string>
+    <!-- %1$d is the Bluetooth stack\'s own number for what went wrong. -->
+    <string name="ble_notifications_refused">Notifications could not be turned on (%1$d).</string>
+    <string name="ble_write_failed">A frame was not written (%1$d).</string>
 </resources>

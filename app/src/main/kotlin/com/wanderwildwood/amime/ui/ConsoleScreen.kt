@@ -20,12 +20,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.mudita.mmd.components.buttons.OutlinedButtonMMD
 import com.mudita.mmd.components.lazy.LazyColumnMMD
 import com.mudita.mmd.components.text.TextMMD
 import com.mudita.mmd.components.text_field.TextFieldMMD
 import com.mudita.mmd.components.top_app_bar.TopAppBarMMD
+import com.wanderwildwood.amime.R
 import com.wanderwildwood.amime.mesh.Admin
 import com.wanderwildwood.amime.mesh.ConsoleLine
 
@@ -55,7 +57,9 @@ fun ConsoleScreen(
         topBar = {
             TopAppBarMMD(
                 title = { TextMMD(text = admin.person.label) },
-                navigationIcon = { BarButton(Icons.Close, "Close", onClose) },
+                navigationIcon = {
+                    BarButton(Icons.Close, stringResource(R.string.console_close), onClose)
+                },
             )
         },
     ) { padding ->
@@ -63,13 +67,18 @@ fun ConsoleScreen(
             // The state of the login is worth a line of its own, because until it is in there
             // is nothing to be done here and no way to tell that from a slow answer.
             TextMMD(
-                text = when (admin.state) {
-                    Admin.State.LOGGING_IN -> "Logging in. The answer comes back over the air."
-                    Admin.State.REFUSED ->
-                        "Refused. It does not say whether that was the password or a full node."
-                    Admin.State.IN ->
-                        if (admin.isAdmin) "Logged in as administrator." else "Logged in as a guest, which can do very little."
-                },
+                text = stringResource(
+                    when (admin.state) {
+                        Admin.State.LOGGING_IN -> R.string.console_logging_in
+                        Admin.State.REFUSED -> R.string.console_refused
+                        Admin.State.IN ->
+                            if (admin.isAdmin) {
+                                R.string.console_administrator
+                            } else {
+                                R.string.console_guest
+                            }
+                    },
+                ),
                 style = MaterialTheme.typography.labelSmall,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
             )
@@ -78,7 +87,7 @@ fun ConsoleScreen(
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     TextMMD(
                         text = if (admin.state == Admin.State.IN) {
-                            "Nothing asked yet. `help` lists what it will answer."
+                            stringResource(R.string.console_nothing_asked)
                         } else {
                             ""
                         },
@@ -109,7 +118,10 @@ fun ConsoleScreen(
                     },
                     enabled = admin.state == Admin.State.IN && draft.isNotBlank(),
                 ) {
-                    TextMMD(text = "Send", style = MaterialTheme.typography.titleSmall)
+                    TextMMD(
+                        text = stringResource(R.string.console_send),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
                 }
             }
         }

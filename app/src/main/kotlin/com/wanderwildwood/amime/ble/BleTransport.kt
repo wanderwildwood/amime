@@ -12,7 +12,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.util.Log
+import androidx.annotation.StringRes
 import com.wanderwildwood.amime.BuildConfig
+import com.wanderwildwood.amime.R
 import com.wanderwildwood.amime.link.Transport
 
 /**
@@ -59,13 +61,19 @@ class BleTransport(
          */
         fun onPairingRequired() {}
 
-        /** Something went wrong that stopped the link coming up. */
-        fun onError(stage: String, status: Int)
+        /**
+         * Something went wrong, said in words rather than in a code.
+         *
+         * Finished here rather than in the listener because this is the layer that knows
+         * what the numbers mean, and because a sentence assembled from an English fragment
+         * and a status cannot be translated by anybody.
+         */
+        fun onError(message: String)
     }
 
     private var gatt: BluetoothGatt? = null
     private var rx: BluetoothGattCharacteristic? = null
-    private val queue = OperationQueue { listener.onError("operation refused by the stack", -1) }
+    private val queue = OperationQueue { fail(R.string.ble_refused) }
 
     private var bondReceiver: BroadcastReceiver? = null
 
@@ -104,7 +112,7 @@ class BleTransport(
      */
     override fun send(frame: ByteArray) {
         val characteristic = rx ?: run {
-            listener.onError("not connected", -1)
+            fail(R.string.ble_not_connected)
             return
         }
         val connection = gatt ?: return
@@ -114,7 +122,7 @@ class BleTransport(
         // at later from a reply that makes no sense.
         val room = negotiatedMtu - ATT_HEADER
         if (negotiatedMtu > 0 && frame.size > room) {
-            listener.onError("frame of ${frame.size} bytes does not fit $room", -1)
+            fail(R.string.ble_frame_too_long, frame.size, room)
             return
         }
         log { "send ${frame.size} bytes: ${frame.joinToString(" ") { "%02x".format(it) }}" }
@@ -147,7 +155,7 @@ class BleTransport(
                         unregisterBondReceiver()
                         // A refused or mistyped PIN lands here, and so does a radio that has
                         // forgotten this phone while the phone still remembers it.
-                        listener.onError("pairing failed or was refused", -1)
+                        fail(R.string.ble_pairing_failed)
                     }
                 }
             }
@@ -207,7 +215,7 @@ class BleTransport(
             // A refused request is survivable — the link still works, it just cannot carry a
             // long frame whole, and a short frame decodes to Frame.Malformed rather than to
             // something plausible and wrong.
-            if (mtu < MIN_USABLE_MTU) listener.onError("MTU stayed at $mtu", status)
+            if (mtu < MIN_USABLE_MTU) fail(R.string.ble_small_mtu, mtu)
             negotiatedMtu = mtu
             queue.completeCurrent()
             gatt.discoverServices()
@@ -217,13 +225,13 @@ class BleTransport(
             log { "services=${gatt.services.map { it.uuid }} status=$status" }
             val service = gatt.getService(NordicUart.SERVICE)
             if (service == null) {
-                listener.onError("no Nordic UART service on this device", status)
+                fail(R.string.ble_no_service)
                 return
             }
             rx = service.getCharacteristic(NordicUart.RX)
             val tx = service.getCharacteristic(NordicUart.TX)
             if (rx == null || tx == null) {
-                listener.onError("the UART service is missing a characteristic", status)
+                fail(R.string.ble_missing_characteristic)
                 return
             }
 
@@ -243,7 +251,7 @@ class BleTransport(
                 // setCharacteristicNotification alone only tells the local stack to stop
                 // discarding notifications; without the descriptor write the radio was never
                 // asked to send any, and the connection looks fine and stays silent.
-                listener.onError("no CCCD on the notify characteristic", status)
+                fail(R.string.ble_no_cccd)
                 return
             }
             queue.enqueue {
@@ -275,7 +283,7 @@ class BleTransport(
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 listener.onReady()
             } else {
-                listener.onError("could not enable notifications", status)
+                fail(R.string.ble_notifications_refused, status)
             }
         }
 
@@ -287,7 +295,7 @@ class BleTransport(
             log { "wrote status=$status" }
             queue.completeCurrent()
             if (status != BluetoothGatt.GATT_SUCCESS) {
-                listener.onError("frame not written", status)
+                fail(R.string.ble_write_failed, status)
             }
         }
 
@@ -308,6 +316,10 @@ class BleTransport(
     }
 
     private var negotiatedMtu: Int = 0
+
+    private fun fail(@StringRes reason: Int, vararg values: Any) {
+        listener.onError(context.getString(reason, *values))
+    }
 
     private companion object {
         /**

@@ -20,12 +20,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.mudita.mmd.components.buttons.OutlinedButtonMMD
 import com.mudita.mmd.components.lazy.LazyColumnMMD
 import com.mudita.mmd.components.text.TextMMD
 import com.mudita.mmd.components.text_field.TextFieldMMD
 import com.mudita.mmd.components.top_app_bar.TopAppBarMMD
+import com.wanderwildwood.amime.R
 import com.wanderwildwood.amime.mesh.MeshState
 import com.wanderwildwood.amime.mesh.Person
 
@@ -56,7 +59,7 @@ fun PeopleScreen(
                     Column {
                         // The node's own name, because on a mesh which radio you are is the
                         // first thing worth knowing and there is nowhere else it would say it.
-                        TextMMD(text = state.nodeName ?: "Mesh")
+                        TextMMD(text = state.nodeName ?: stringResource(R.string.app_name))
                         // Only where there is a reading. A node that has not answered yet is
                         // not a node at nothing, and a figure drawn from no reply would say
                         // it was. It matters for a node that leaves the desk.
@@ -70,7 +73,9 @@ fun PeopleScreen(
                 },
                 // About is not a setting, and it is the one thing a stranger looks for
                 // before trusting an app. An i in the top right, as everywhere else here.
-                actions = { BarButton(Icons.Info, "About", { aboutOpen = true }) },
+                actions = {
+                    BarButton(Icons.Info, stringResource(R.string.about)) { aboutOpen = true }
+                },
             )
         },
     ) { padding ->
@@ -81,7 +86,7 @@ fun PeopleScreen(
             // saying it nowhere is how an app comes to be quietly wrong for a week.
             problem?.let {
                 TextMMD(
-                    text = "$it — tap to clear",
+                    text = stringResource(R.string.problem_tap_to_clear, it),
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -140,12 +145,12 @@ private fun LoginDialog(person: Person, onDismiss: () -> Unit, onLogIn: (String)
 
     EInkDialog(onDismiss = onDismiss) {
         TextMMD(
-            text = "Log in to ${person.label}",
+            text = stringResource(R.string.login_title, person.label),
             style = MaterialTheme.typography.bodyLarge,
         )
         Spacer(Modifier.height(14.dp))
         TextMMD(
-            text = "The node's own password, not this phone's.",
+            text = stringResource(R.string.login_whose_password),
             style = MaterialTheme.typography.labelSmall,
         )
         Spacer(Modifier.height(14.dp))
@@ -159,12 +164,22 @@ private fun LoginDialog(person: Person, onDismiss: () -> Unit, onLogIn: (String)
             OutlinedButtonMMD(
                 onClick = onDismiss,
                 modifier = Modifier.weight(1f).height(48.dp),
-            ) { TextMMD(text = "Cancel", style = MaterialTheme.typography.bodySmall) }
+            ) {
+                TextMMD(
+                    text = stringResource(R.string.login_cancel),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
             OutlinedButtonMMD(
                 onClick = { onLogIn(password) },
                 enabled = password.isNotBlank(),
                 modifier = Modifier.weight(1f).height(48.dp),
-            ) { TextMMD(text = "Log in", style = MaterialTheme.typography.bodySmall) }
+            ) {
+                TextMMD(
+                    text = stringResource(R.string.login_in),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
         }
     }
 }
@@ -177,16 +192,19 @@ private fun LoginDialog(person: Person, onDismiss: () -> Unit, onLogIn: (String)
  * came from, so any curve mapping one to the other here would be a guess wearing a number's
  * clothes. The words say roughly, because roughly is what is known.
  */
-private fun batteryLine(millivolts: Int): String {
-    val volts = millivolts / 1000f
-    val sense = when {
-        millivolts >= 4000 -> "full"
-        millivolts >= 3700 -> "good"
-        millivolts >= 3500 -> "getting low"
-        else -> "low"
-    }
-    return "%.2f V, %s".format(volts, sense)
-}
+@Composable
+private fun batteryLine(millivolts: Int): String = stringResource(
+    R.string.battery,
+    millivolts / 1000f,
+    stringResource(
+        when {
+            millivolts >= 4000 -> R.string.battery_full
+            millivolts >= 3700 -> R.string.battery_good
+            millivolts >= 3500 -> R.string.battery_getting_low
+            else -> R.string.battery_low
+        },
+    ),
+)
 
 @Composable
 private fun PersonRow(person: Person, unread: Boolean, onClick: () -> Unit) {
@@ -202,9 +220,15 @@ private fun PersonRow(person: Person, unread: Boolean, onClick: () -> Unit) {
         // A second line only where it carries something the label could not: what kind of
         // node this is, and only when it is not the ordinary kind.
         if (person.isRepeater) {
-            TextMMD(text = "Repeater", style = MaterialTheme.typography.labelSmall)
+            TextMMD(
+                text = stringResource(R.string.people_repeater),
+                style = MaterialTheme.typography.labelSmall,
+            )
         } else if (unread) {
-            TextMMD(text = "Has messages", style = MaterialTheme.typography.labelSmall)
+            TextMMD(
+                text = stringResource(R.string.people_has_messages),
+                style = MaterialTheme.typography.labelSmall,
+            )
         }
     }
 }
@@ -223,15 +247,16 @@ private fun Empty(state: MeshState, modifier: Modifier) {
             // list because nothing is transmitting is a reason to move the antenna; an empty
             // list while it is picking up traffic is a reason to wait.
             text = when {
-                !state.ready -> "Not connected to a radio."
-                state.heard.packets == 0 ->
-                    "Nobody yet, and nothing at all on the air since connecting."
-                else ->
-                    "Nobody yet, but ${state.heard.packets} " +
-                        (if (state.heard.packets == 1) "packet" else "packets") +
-                        " heard since connecting" +
-                        (state.heard.bestSnr?.let { ", strongest %.1f dB".format(it) } ?: "") +
-                        ". Something is transmitting in range; none of it a readable advert."
+                !state.ready -> stringResource(R.string.people_not_connected)
+                state.heard.packets == 0 -> stringResource(R.string.people_nothing_heard)
+                else -> pluralStringResource(
+                    R.plurals.people_heard,
+                    state.heard.packets,
+                    state.heard.packets,
+                    state.heard.bestSnr
+                        ?.let { stringResource(R.string.people_heard_strongest, it) }
+                        .orEmpty(),
+                )
             },
             style = MaterialTheme.typography.titleSmall,
             modifier = Modifier.padding(horizontal = 24.dp),

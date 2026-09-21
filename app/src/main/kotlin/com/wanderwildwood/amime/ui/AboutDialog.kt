@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.mudita.mmd.components.buttons.OutlinedButtonMMD
@@ -37,36 +38,33 @@ import com.wanderwildwood.amime.R
 fun AboutDialog(onDismiss: () -> Unit) {
     EInkDialog(onDismiss = onDismiss) {
         TextMMD(
-            text = "Mesh ${BuildConfig.VERSION_NAME}",
+            text = stringResource(R.string.about_version, BuildConfig.VERSION_NAME),
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Medium,
         )
         Spacer(Modifier.height(14.dp))
         TextMMD(
-            text = "A companion for a MeshCore radio. Messages go over Bluetooth to the radio " +
-                "beside you and out through the mesh.",
+            text = stringResource(R.string.about_what),
             style = MaterialTheme.typography.labelSmall,
         )
         Spacer(Modifier.height(14.dp))
         TextMMD(
-            text = "Nothing here touches the internet. There is no account, no server and no " +
-                "carrier — only the radio, and whatever it can reach.",
+            text = stringResource(R.string.about_reach),
             style = MaterialTheme.typography.labelSmall,
         )
         Spacer(Modifier.height(14.dp))
         TextMMD(
-            text = "GNU General Public License v3 only",
+            text = stringResource(R.string.about_licence),
             style = MaterialTheme.typography.labelSmall,
         )
         Spacer(Modifier.height(14.dp))
         TextMMD(
-            text = "MeshCore's protocol, implemented from reading its source. MeshCore itself is " +
-                "MIT and none of it is copied here.",
+            text = stringResource(R.string.about_meshcore),
             style = MaterialTheme.typography.labelSmall,
         )
         Spacer(Modifier.height(14.dp))
         TextMMD(
-            text = "Icons from Material Symbols, Apache 2.0",
+            text = stringResource(R.string.about_icons),
             style = MaterialTheme.typography.labelSmall,
         )
 
@@ -77,7 +75,7 @@ fun AboutDialog(onDismiss: () -> Unit) {
         OutlinedButtonMMD(
             onClick = onDismiss,
             modifier = Modifier.fillMaxWidth().height(48.dp),
-        ) { TextMMD(text = "Close", style = MaterialTheme.typography.bodySmall) }
+        ) { TextMMD(text = stringResource(R.string.about_close), style = MaterialTheme.typography.bodySmall) }
     }
 }
 
@@ -111,7 +109,7 @@ private fun Llama() {
                 }.onFailure {
                     Toast.makeText(
                         context,
-                        "There is no browser on this phone to open that with.",
+                        context.getString(R.string.about_no_browser),
                         Toast.LENGTH_SHORT,
                     ).show()
                 }
@@ -124,6 +122,6 @@ private fun Llama() {
             modifier = Modifier.size(22.dp),
         )
         Spacer(Modifier.width(6.dp))
-        TextMMD(text = "Feed the llamas", style = MaterialTheme.typography.labelSmall)
+        TextMMD(text = stringResource(R.string.about_llama), style = MaterialTheme.typography.labelSmall)
     }
 }

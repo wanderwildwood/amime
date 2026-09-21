@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.Context
+import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.wanderwildwood.amime.ble.BleTransport
@@ -69,10 +70,10 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
     private val listener = object : Session.Listener by store {
         override fun onProtocolProblem(problem: Session.Problem) {
             _problem.value = when (problem) {
-                Session.Problem.HANDSHAKE_SKIPPED ->
-                    "The radio is answering in an older format; messages may be unreadable."
-                Session.Problem.FRAME_TRUNCATED ->
-                    "Part of a message was lost between the radio and the phone."
+                Session.Problem.HANDSHAKE_SKIPPED -> say(R.string.problem_old_format)
+                Session.Problem.FRAME_TRUNCATED -> say(R.string.problem_truncated)
+                // Harmless: a frame this app has no use for, from a firmware that has more
+                // to say than this one asks about.
                 Session.Problem.UNKNOWN_FRAME -> null
             }
         }
@@ -98,8 +99,8 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
                 _pairing.value = true
             }
 
-            override fun onError(stage: String, status: Int) {
-                _problem.value = if (status >= 0) "$stage ($status)" else stage
+            override fun onError(message: String) {
+                _problem.value = message
             }
         },
     )
@@ -120,10 +121,12 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
                     .onSuccess { written = conversations }
                     // Worth saying rather than logging: it means this session's messages are
                     // the only copy, and there will be nothing to read tomorrow.
-                    .onFailure { _problem.value = "Messages are not being saved on this phone." }
+                    .onFailure { _problem.value = say(R.string.problem_not_saving) }
             }
         }
     }
+
+    private fun say(@StringRes line: Int): String = getApplication<Application>().getString(line)
 
     private val adapter: BluetoothAdapter?
         get() = (getApplication<Application>()
@@ -173,10 +176,9 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
                 when (ending) {
                     RadioScanner.Ending.FINISHED -> Unit
                     RadioScanner.Ending.NO_BLUETOOTH ->
-                        _problem.value = "Bluetooth is off."
+                        _problem.value = say(R.string.problem_bluetooth_off)
                     RadioScanner.Ending.REFUSED ->
-                        _problem.value = "Android would not start a scan. It limits how often " +
-                            "an app may look; half a minute usually clears it."
+                        _problem.value = say(R.string.problem_scan_refused)
                 }
             },
         ) { device, name, rssi ->

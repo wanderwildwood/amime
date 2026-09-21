@@ -12,12 +12,14 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.mudita.mmd.components.buttons.OutlinedButtonMMD
 import com.mudita.mmd.components.lazy.LazyColumnMMD
 import com.mudita.mmd.components.text.TextMMD
 import com.mudita.mmd.components.top_app_bar.TopAppBarMMD
 import com.wanderwildwood.amime.MeshViewModel
+import com.wanderwildwood.amime.R
 import com.wanderwildwood.amime.ble.NordicUart
 
 /**
@@ -38,7 +40,7 @@ fun RadiosScreen(
 ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surface,
-        topBar = { TopAppBarMMD(title = { TextMMD(text = "Radios") }) },
+        topBar = { TopAppBarMMD(title = { TextMMD(text = stringResource(R.string.radios_title)) }) },
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             // The app knowing something is wrong and showing nothing is worse than the
@@ -57,8 +59,7 @@ fun RadiosScreen(
             // obvious conclusion when that fails is that the app does not work.
             if (pairing) {
                 TextMMD(
-                    text = "Pairing. The PIN is the radio's own: a node with a screen shows " +
-                        "it, and one without has ${NordicUart.DEFAULT_PIN} until it is changed.",
+                    text = stringResource(R.string.radios_pairing, NordicUart.DEFAULT_PIN),
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
                 )
@@ -67,11 +68,11 @@ fun RadiosScreen(
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     TextMMD(
                         text = if (scanning) {
-                            "Looking."
+                            stringResource(R.string.radios_looking_sentence)
                         } else {
                             // Two different things look the same from here, and neither is
                             // worth guessing between on the reader's behalf.
-                            "No radio found. It may be out of range, or switched off."
+                            stringResource(R.string.radios_none)
                         },
                         style = MaterialTheme.typography.titleSmall,
                         modifier = Modifier.padding(horizontal = 24.dp),
@@ -90,7 +91,12 @@ fun RadiosScreen(
                 enabled = !scanning,
                 modifier = Modifier.fillMaxWidth().padding(12.dp),
             ) {
-                TextMMD(text = if (scanning) "Looking" else "Look again", style = MaterialTheme.typography.titleSmall)
+                TextMMD(
+                    text = stringResource(
+                        if (scanning) R.string.radios_looking else R.string.radios_look_again,
+                    ),
+                    style = MaterialTheme.typography.titleSmall,
+                )
             }
         }
     }
@@ -110,6 +116,11 @@ private fun RadioRow(radio: MeshViewModel.Radio, onClick: () -> Unit) {
         TextMMD(text = radio.name, style = MaterialTheme.typography.bodyMedium)
         // The signal is worth a line here and nowhere else: it is the one number that says
         // whether the thing you are about to pair with is near enough to stay paired.
-        radio.rssi?.let { TextMMD(text = "$it dBm", style = MaterialTheme.typography.labelSmall) }
+        radio.rssi?.let {
+            TextMMD(
+                text = stringResource(R.string.radios_signal, it),
+                style = MaterialTheme.typography.labelSmall,
+            )
+        }
     }
 }

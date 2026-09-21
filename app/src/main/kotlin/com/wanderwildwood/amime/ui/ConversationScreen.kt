@@ -19,12 +19,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.mudita.mmd.components.buttons.OutlinedButtonMMD
 import com.mudita.mmd.components.lazy.LazyColumnMMD
 import com.mudita.mmd.components.text.TextMMD
 import com.mudita.mmd.components.text_field.TextFieldMMD
 import com.mudita.mmd.components.top_app_bar.TopAppBarMMD
+import com.wanderwildwood.amime.R
 import com.wanderwildwood.amime.mesh.Conversation
 import com.wanderwildwood.amime.mesh.Delivery
 import com.wanderwildwood.amime.mesh.Message
@@ -64,7 +66,9 @@ fun ConversationScreen(
         topBar = {
             TopAppBarMMD(
                 title = { TextMMD(text = conversation.person.label) },
-                navigationIcon = { BarButton(Icons.Close, "Back", onBack) },
+                navigationIcon = {
+                    BarButton(Icons.Close, stringResource(R.string.conversation_back), onBack)
+                },
             )
         },
     ) { padding ->
@@ -79,7 +83,11 @@ fun ConversationScreen(
             // on a screen this size, and the number matters for about one message in fifty.
             if (length > Sizes.MAX_TEXT - NEARLY) {
                 TextMMD(
-                    text = if (overBy > 0) "$overBy too many" else "${-overBy} left",
+                    text = if (overBy > 0) {
+                        stringResource(R.string.conversation_too_many, overBy)
+                    } else {
+                        stringResource(R.string.conversation_left, -overBy)
+                    },
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
                 )
@@ -106,7 +114,10 @@ fun ConversationScreen(
                     // above says which of the two it is.
                     enabled = canSend && draft.isNotBlank() && overBy <= 0,
                 ) {
-                    TextMMD(text = "Send", style = MaterialTheme.typography.titleSmall)
+                    TextMMD(
+                        text = stringResource(R.string.conversation_send),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
                 }
             }
         }
@@ -156,22 +167,25 @@ private val Delivery.isSettled: Boolean
  * received one that arrived normally does not either — a note on every row is furniture, and
  * furniture stops being read in the row where it mattered.
  */
+@Composable
 private fun Message.note(): String? = when {
-    mine && delivery == Delivery.REFUSED -> "The radio would not send this"
-    mine && delivery == Delivery.NO_ACK_EXPECTED -> "Sent; there will be no confirmation"
-    mine && delivery == Delivery.SENDING -> "Sending"
-    mine && delivery == Delivery.UNRESOLVED -> "Sent before this app was last closed; no " +
-        "answer was ever seen"
-    mine && delivery == Delivery.AWAITING_ACK -> "Waiting for a confirmation"
+    mine && delivery == Delivery.REFUSED -> stringResource(R.string.message_refused)
+    mine && delivery == Delivery.NO_ACK_EXPECTED ->
+        stringResource(R.string.message_no_confirmation)
+    mine && delivery == Delivery.SENDING -> stringResource(R.string.message_sending)
+    mine && delivery == Delivery.UNRESOLVED -> stringResource(R.string.message_unresolved)
+    mine && delivery == Delivery.AWAITING_ACK -> stringResource(R.string.message_waiting)
     // Only worth saying where it is not the ordinary case: a message that came through
     // repeaters travelled further than one that did not, and the signal is the reason a
     // reply might not make it back.
-    !mine && direct == false -> "Through the mesh" + snrNote()
-    !mine && snr != null && snr < WEAK_SNR -> "Weak signal" + snrNote()
+    !mine && direct == false -> stringResource(R.string.message_through_mesh) + snrNote()
+    !mine && snr != null && snr < WEAK_SNR -> stringResource(R.string.message_weak_signal) + snrNote()
     else -> null
 }
 
-private fun Message.snrNote(): String = snr?.let { ", %.1f dB".format(it) } ?: ""
+@Composable
+private fun Message.snrNote(): String =
+    snr?.let { stringResource(R.string.message_signal, it) }.orEmpty()
 
 /**
  * Below this, a link is working but has little margin left. Chosen as the point where
