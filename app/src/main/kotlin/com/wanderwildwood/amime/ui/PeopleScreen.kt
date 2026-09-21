@@ -1,10 +1,14 @@
 package com.wanderwildwood.amime.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -17,8 +21,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.mudita.mmd.components.buttons.OutlinedButtonMMD
 import com.mudita.mmd.components.lazy.LazyColumnMMD
 import com.mudita.mmd.components.text.TextMMD
+import com.mudita.mmd.components.text_field.TextFieldMMD
 import com.mudita.mmd.components.top_app_bar.TopAppBarMMD
 import com.wanderwildwood.amime.mesh.MeshState
 import com.wanderwildwood.amime.mesh.Person
@@ -27,16 +33,20 @@ import com.wanderwildwood.amime.mesh.Person
  * Everyone the radio knows about.
  *
  * One node is one row, whether it is a person, a repeater or something that has never given
- * a name. A repeater cannot be written to and says so rather than offering a thread that
- * would go nowhere.
+ * a name. A repeater has no inbox, so its row does not open a thread that would go nowhere —
+ * it opens the one thing a repeater is for, which is being told what to do.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PeopleScreen(
     state: MeshState,
+    problem: String?,
     onOpen: (Person) -> Unit,
+    onAdminister: (Person, String) -> Unit,
+    onDismissProblem: () -> Unit,
 ) {
     var aboutOpen by remember { mutableStateOf(false) }
+    var loginTo by remember { mutableStateOf<Person?>(null) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surface,
@@ -64,23 +74,99 @@ fun PeopleScreen(
             )
         },
     ) { padding ->
-        if (state.people.isEmpty()) {
-            Empty(state, Modifier.padding(padding))
-        } else {
-            LazyColumnMMD(modifier = Modifier.padding(padding).fillMaxSize()) {
-                items(state.people.size) { index ->
-                    val person = state.people[index]
-                    PersonRow(
-                        person = person,
-                        unread = state.conversations[person.prefix].orEmpty().isNotEmpty(),
-                        onClick = { onOpen(person) },
-                    )
+        Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+            // The last thing that went wrong, until somebody has read it. This is the screen
+            // the app lives on, so a fault raised after connecting — a frame that arrived
+            // truncated, a log that cannot be written — has nowhere else to be said, and
+            // saying it nowhere is how an app comes to be quietly wrong for a week.
+            problem?.let {
+                TextMMD(
+                    text = "$it — tap to clear",
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onDismissProblem)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                )
+            }
+
+            if (state.people.isEmpty()) {
+                Empty(state, Modifier.weight(1f))
+            } else {
+                LazyColumnMMD(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    items(state.people.size) { index ->
+                        val person = state.people[index]
+                        PersonRow(
+                            person = person,
+                            unread = state.conversations[person.prefix].orEmpty().isNotEmpty(),
+                            onClick = {
+                                if (person.isRepeater) loginTo = person else onOpen(person)
+                            },
+                        )
+                    }
                 }
             }
         }
     }
 
     if (aboutOpen) AboutDialog(onDismiss = { aboutOpen = false })
+
+    loginTo?.let { person ->
+        LoginDialog(
+            person = person,
+            onDismiss = { loginTo = null },
+            onLogIn = { password ->
+                loginTo = null
+                onAdminister(person, password)
+            },
+        )
+    }
+}
+
+/**
+ * Asking for a repeater's password.
+ *
+ * The password belongs to the node rather than to the phone or the person, which is the one
+ * thing worth saying here: an untouched repeater still has the firmware's, and somebody who
+ * assumes it is theirs will type the wrong thing three times before doubting the app.
+ *
+ * Not masked. A repeater's password is shared by everyone who looks after it rather than
+ * personal, and on a panel that redraws this slowly a row of dots is how a typo survives to
+ * become a refused login with nothing to show for it.
+ */
+@Composable
+private fun LoginDialog(person: Person, onDismiss: () -> Unit, onLogIn: (String) -> Unit) {
+    var password by remember { mutableStateOf("") }
+
+    EInkDialog(onDismiss = onDismiss) {
+        TextMMD(
+            text = "Log in to ${person.label}",
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        Spacer(Modifier.height(14.dp))
+        TextMMD(
+            text = "The node's own password, not this phone's.",
+            style = MaterialTheme.typography.labelSmall,
+        )
+        Spacer(Modifier.height(14.dp))
+        TextFieldMMD(
+            value = password,
+            onValueChange = { password = it },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(18.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButtonMMD(
+                onClick = onDismiss,
+                modifier = Modifier.weight(1f).height(48.dp),
+            ) { TextMMD(text = "Cancel", style = MaterialTheme.typography.bodySmall) }
+            OutlinedButtonMMD(
+                onClick = { onLogIn(password) },
+                enabled = password.isNotBlank(),
+                modifier = Modifier.weight(1f).height(48.dp),
+            ) { TextMMD(text = "Log in", style = MaterialTheme.typography.bodySmall) }
+        }
+    }
 }
 
 /**

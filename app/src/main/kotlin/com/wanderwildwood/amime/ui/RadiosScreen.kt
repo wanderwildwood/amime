@@ -13,12 +13,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.mudita.mmd.components.buttons.OutlinedButtonMMD
 import com.mudita.mmd.components.lazy.LazyColumnMMD
 import com.mudita.mmd.components.text.TextMMD
 import com.mudita.mmd.components.top_app_bar.TopAppBarMMD
 import com.wanderwildwood.amime.MeshViewModel
+import com.wanderwildwood.amime.ble.NordicUart
 
 /**
  * Choosing a radio.
@@ -32,6 +32,7 @@ fun RadiosScreen(
     radios: List<MeshViewModel.Radio>,
     scanning: Boolean,
     problem: String?,
+    pairing: Boolean,
     onScan: () -> Unit,
     onConnect: (MeshViewModel.Radio) -> Unit,
 ) {
@@ -46,7 +47,19 @@ fun RadiosScreen(
             problem?.let {
                 TextMMD(
                     text = it,
-                    fontSize = 14.sp,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                )
+            }
+            // The PIN the system dialog is asking for belongs to the radio, not to the phone,
+            // and on a node with a screen it is a fresh six digits after every power cut.
+            // Without this line the obvious thing to try is the phone's own PIN, and the
+            // obvious conclusion when that fails is that the app does not work.
+            if (pairing) {
+                TextMMD(
+                    text = "Pairing. The PIN is the radio's own: a node with a screen shows " +
+                        "it, and one without has ${NordicUart.DEFAULT_PIN} until it is changed.",
+                    style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
                 )
             }

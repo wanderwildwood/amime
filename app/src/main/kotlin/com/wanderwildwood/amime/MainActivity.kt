@@ -43,6 +43,7 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
     val radios by viewModel.radios.collectAsStateWithLifecycle()
     val scanning by viewModel.scanning.collectAsStateWithLifecycle()
     val problem by viewModel.problem.collectAsStateWithLifecycle()
+    val pairing by viewModel.pairing.collectAsStateWithLifecycle()
 
     val ask = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -74,6 +75,7 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
             radios = radios,
             scanning = scanning,
             problem = problem,
+            pairing = pairing,
             onScan = viewModel::findRadios,
             onConnect = { viewModel.connect(it.device) },
         )
@@ -81,12 +83,17 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
         ConversationScreen(
             conversation = state.conversationWith(person.prefix)
                 ?: com.wanderwildwood.amime.mesh.Conversation(person),
-            // A repeater has no inbox to write to.
-            canSend = state.ready && !person.isRepeater,
+            canSend = state.ready,
             onSend = { viewModel.send(person, it) },
             onBack = { open = null },
         )
     } else {
-        PeopleScreen(state = state, onOpen = { open = it })
+        PeopleScreen(
+            state = state,
+            problem = problem,
+            onOpen = { open = it },
+            onAdminister = viewModel::beginAdmin,
+            onDismissProblem = viewModel::dismissProblem,
+        )
     }
 }

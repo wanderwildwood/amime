@@ -12,6 +12,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.util.Log
+import com.wanderwildwood.amime.BuildConfig
 import com.wanderwildwood.amime.link.Transport
 
 /**
@@ -107,7 +108,16 @@ class BleTransport(
             return
         }
         val connection = gatt ?: return
-        Log.i(TAG, "send ${frame.size} bytes: ${frame.joinToString(" ") { "%02x".format(it) }}")
+        // A value longer than the link will carry is not rejected by the stack; it is cut
+        // down to the MTU and written, and what arrives at the radio is a frame that ends
+        // mid-field. Refusing here is the only place this can be said rather than guessed
+        // at later from a reply that makes no sense.
+        val room = negotiatedMtu - ATT_HEADER
+        if (negotiatedMtu > 0 && frame.size > room) {
+            listener.onError("frame of ${frame.size} bytes does not fit $room", -1)
+            return
+        }
+        log { "send ${frame.size} bytes: ${frame.joinToString(" ") { "%02x".format(it) }}" }
         queue.enqueue {
             @Suppress("DEPRECATION") // The Android 13 overload does not exist on the Kompakt's API 31.
             run {
@@ -167,7 +177,7 @@ class BleTransport(
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
-                    Log.i(TAG, "connected status=$status")
+                    log { "connected status=$status" }
                     // MTU before service discovery: a larger MTU changes nothing about the
                     // services, and asking afterwards means the first frames go out at 20
                     // bytes and come back cut off.
@@ -176,7 +186,7 @@ class BleTransport(
                 }
 
                 BluetoothProfile.STATE_DISCONNECTED -> {
-                    Log.i(TAG, "disconnected status=$status")
+                    log { "disconnected status=$status" }
                     queue.clear()
                     rx = null
                     // Closing is not optional and not the same as disconnecting. Android
@@ -193,7 +203,7 @@ class BleTransport(
         }
 
         override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
-            Log.i(TAG, "mtu=$mtu status=$status")
+            log { "mtu=$mtu status=$status" }
             // A refused request is survivable — the link still works, it just cannot carry a
             // long frame whole, and a short frame decodes to Frame.Malformed rather than to
             // something plausible and wrong.
@@ -204,7 +214,7 @@ class BleTransport(
         }
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
-            Log.i(TAG, "services=${gatt.services.map { it.uuid }} status=$status")
+            log { "services=${gatt.services.map { it.uuid }} status=$status" }
             val service = gatt.getService(NordicUart.SERVICE)
             if (service == null) {
                 listener.onError("no Nordic UART service on this device", status)
@@ -250,7 +260,7 @@ class BleTransport(
             characteristic: BluetoothGattCharacteristic,
             status: Int,
         ) {
-            Log.i(TAG, "read ${characteristic.uuid} status=$status bond=${gatt.device.bondState}")
+            log { "read ${characteristic.uuid} status=$status bond=${gatt.device.bondState}" }
             queue.completeCurrent()
         }
 
@@ -259,7 +269,7 @@ class BleTransport(
             descriptor: BluetoothGattDescriptor,
             status: Int,
         ) {
-            Log.i(TAG, "descriptorWrite ${descriptor.uuid} status=$status")
+            log { "descriptorWrite ${descriptor.uuid} status=$status" }
             queue.completeCurrent()
             if (descriptor.uuid != NordicUart.CCCD) return
             if (status == BluetoothGatt.GATT_SUCCESS) {
@@ -274,7 +284,7 @@ class BleTransport(
             characteristic: BluetoothGattCharacteristic,
             status: Int,
         ) {
-            Log.i(TAG, "wrote status=$status")
+            log { "wrote status=$status" }
             queue.completeCurrent()
             if (status != BluetoothGatt.GATT_SUCCESS) {
                 listener.onError("frame not written", status)
@@ -287,8 +297,10 @@ class BleTransport(
             characteristic: BluetoothGattCharacteristic,
         ) {
             if (characteristic.uuid != NordicUart.TX) return
-            Log.i(TAG, "notify ${characteristic.value?.size} bytes: " +
-                characteristic.value?.joinToString(" ") { "%02x".format(it) })
+            log {
+                "notify ${characteristic.value?.size} bytes: " +
+                    characteristic.value?.joinToString(" ") { "%02x".format(it) }
+            }
             // Copied on the way out: the array behind a characteristic is reused by the stack
             // for the next notification, so anything holding it sees its own message change.
             characteristic.value?.let { listener.onFrame(it.copyOf()) }
@@ -298,8 +310,6 @@ class BleTransport(
     private var negotiatedMtu: Int = 0
 
     private companion object {
-        const val TAG = "amime.ble"
-
         /**
          * Enough to carry a contact frame, the largest this app has to receive whole.
          *
@@ -311,5 +321,25 @@ class BleTransport(
          * `Frame.Malformed` rather than to something plausible and wrong.
          */
         const val MIN_USABLE_MTU = 151
+
+        /** Three bytes of ATT opcode and handle come off every MTU before any payload. */
+        const val ATT_HEADER = 3
     }
+}
+
+private const val TAG = "amime.ble"
+
+/**
+ * A line of diagnostics, in a debug build and nowhere else.
+ *
+ * These lines are how the protocol was worked out and they are worth keeping, but two of
+ * them print whole frames — which is to say the text of every message sent and received. A
+ * released build writing that to the log would be handing anyone with a cable a copy of the
+ * conversation, from an app whose whole claim is that there is no copy anywhere else.
+ *
+ * Taking a lambda rather than a string means the hex is not even assembled in a release
+ * build, where the whole call inlines away to nothing.
+ */
+private inline fun log(message: () -> String) {
+    if (BuildConfig.DEBUG) Log.i(TAG, message())
 }

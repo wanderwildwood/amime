@@ -132,8 +132,22 @@ object Sizes {
     const val MAX_PATH = 64
     const val NAME = 32
 
-    /** 176 bytes, transport codes included. Longer text is truncated by the radio, silently. */
+    /** 176 bytes, transport codes included. A frame longer than this is the radio's limit. */
     const val MAX_FRAME = 176
+
+    /**
+     * The longest message the radio will send, in **bytes** of UTF-8 rather than characters.
+     *
+     * `MAX_TEXT_LEN` in `BaseChatMesh.h`, which is ten cipher blocks of sixteen. A longer
+     * message is not shortened and not queued: `composeMsgPacket` returns null and the
+     * companion answers with a table-full error, which arrives here as a flat refusal with
+     * nothing in it about length. So it is worth refusing before the radio does, in a place
+     * that can say why.
+     *
+     * Thirteen bytes of command frame plus this is 173, which is exactly what a 176-byte MTU
+     * carries — the two limits were chosen against each other.
+     */
+    const val MAX_TEXT = 160
 }
 
 /**

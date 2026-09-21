@@ -1,5 +1,6 @@
 package com.wanderwildwood.amime.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -27,6 +28,7 @@ import com.mudita.mmd.components.top_app_bar.TopAppBarMMD
 import com.wanderwildwood.amime.mesh.Conversation
 import com.wanderwildwood.amime.mesh.Delivery
 import com.wanderwildwood.amime.mesh.Message
+import com.wanderwildwood.amime.protocol.Sizes
 
 /**
  * One thread.
@@ -47,6 +49,16 @@ fun ConversationScreen(
 ) {
     var draft by remember { mutableStateOf("") }
 
+    // The bar at the top has a way back and so does the phone; without this the phone's way
+    // out of a thread is out of the app entirely.
+    BackHandler(onBack = onBack)
+
+    // Counted in bytes, because that is what the radio counts. For anything typed on a Latin
+    // keyboard the two are the same number; for anything else they are not, and the limit
+    // that matters is the one the firmware will enforce.
+    val length = remember(draft) { draft.toByteArray(Charsets.UTF_8).size }
+    val overBy = length - Sizes.MAX_TEXT
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
@@ -61,6 +73,16 @@ fun ConversationScreen(
                 items(conversation.messages.size) { index ->
                     MessageRow(conversation.messages[index])
                 }
+            }
+
+            // Only near the limit, and only then. A count under every message is furniture
+            // on a screen this size, and the number matters for about one message in fifty.
+            if (length > Sizes.MAX_TEXT - NEARLY) {
+                TextMMD(
+                    text = if (overBy > 0) "$overBy too many" else "${-overBy} left",
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                )
             }
 
             Row(
@@ -78,9 +100,11 @@ fun ConversationScreen(
                         onSend(draft)
                         draft = ""
                     },
-                    // A repeater has no inbox, and the radio would refuse the send. Saying so
-                    // by the button being dead is thinner than a line of text under it.
-                    enabled = canSend && draft.isNotBlank(),
+                    // Dead where the radio would refuse it anyway: not connected, or a
+                    // message longer than the firmware will carry. Saying so by the button
+                    // being dead is thinner than a line of text under it, and the count
+                    // above says which of the two it is.
+                    enabled = canSend && draft.isNotBlank() && overBy <= 0,
                 ) {
                     TextMMD(text = "Send", style = MaterialTheme.typography.titleSmall)
                 }
@@ -120,7 +144,10 @@ private fun MessageRow(message: Message) {
 private val Delivery.isSettled: Boolean
     get() = this == Delivery.ACKNOWLEDGED ||
         this == Delivery.NO_ACK_EXPECTED ||
-        this == Delivery.REFUSED
+        this == Delivery.REFUSED ||
+        // Not settled as in arrived — settled as in nothing further is coming. A dotted
+        // border here would say the app was still waiting for something, and it is not.
+        this == Delivery.UNRESOLVED
 
 /**
  * The line under a message, where there is something to say that the border cannot carry.
@@ -133,6 +160,8 @@ private fun Message.note(): String? = when {
     mine && delivery == Delivery.REFUSED -> "The radio would not send this"
     mine && delivery == Delivery.NO_ACK_EXPECTED -> "Sent; there will be no confirmation"
     mine && delivery == Delivery.SENDING -> "Sending"
+    mine && delivery == Delivery.UNRESOLVED -> "Sent before this app was last closed; no " +
+        "answer was ever seen"
     mine && delivery == Delivery.AWAITING_ACK -> "Waiting for a confirmation"
     // Only worth saying where it is not the ordinary case: a message that came through
     // repeaters travelled further than one that did not, and the signal is the reason a
@@ -150,3 +179,6 @@ private fun Message.snrNote(): String = snr?.let { ", %.1f dB".format(it) } ?: "
  * and it is a judgement rather than a measurement.
  */
 private const val WEAK_SNR = -10f
+
+/** How near the limit a message has to be before the screen starts counting, in bytes. */
+private const val NEARLY = 20

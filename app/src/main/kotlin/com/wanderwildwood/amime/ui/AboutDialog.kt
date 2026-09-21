@@ -55,6 +55,11 @@ fun AboutDialog(onDismiss: () -> Unit) {
         )
         Spacer(Modifier.height(14.dp))
         TextMMD(
+            text = "GNU General Public License v3 only",
+            style = MaterialTheme.typography.labelSmall,
+        )
+        Spacer(Modifier.height(14.dp))
+        TextMMD(
             text = "MeshCore's protocol, implemented from reading its source. MeshCore itself is " +
                 "MIT and none of it is copied here.",
             style = MaterialTheme.typography.labelSmall,
@@ -62,11 +67,6 @@ fun AboutDialog(onDismiss: () -> Unit) {
         Spacer(Modifier.height(14.dp))
         TextMMD(
             text = "Icons from Material Symbols, Apache 2.0",
-            style = MaterialTheme.typography.labelSmall,
-        )
-        Spacer(Modifier.height(14.dp))
-        TextMMD(
-            text = "GNU General Public License v3 only",
             style = MaterialTheme.typography.labelSmall,
         )
 

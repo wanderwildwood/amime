@@ -1,5 +1,6 @@
 package com.wanderwildwood.amime.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,7 +21,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.mudita.mmd.components.buttons.OutlinedButtonMMD
 import com.mudita.mmd.components.lazy.LazyColumnMMD
 import com.mudita.mmd.components.text.TextMMD
@@ -46,11 +46,15 @@ fun ConsoleScreen(
 ) {
     var draft by remember { mutableStateOf("") }
 
+    // Leaving by the phone's own way out, which otherwise leaves the app rather than the
+    // console — and leaving properly means logging out, which is what the close does.
+    BackHandler(onBack = onClose)
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             TopAppBarMMD(
-                title = { TextMMD(text = admin.person.label, fontSize = 24.sp) },
+                title = { TextMMD(text = admin.person.label) },
                 navigationIcon = { BarButton(Icons.Close, "Close", onClose) },
             )
         },
@@ -66,7 +70,7 @@ fun ConsoleScreen(
                     Admin.State.IN ->
                         if (admin.isAdmin) "Logged in as administrator." else "Logged in as a guest, which can do very little."
                 },
-                fontSize = 14.sp,
+                style = MaterialTheme.typography.labelSmall,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
             )
 
@@ -78,7 +82,7 @@ fun ConsoleScreen(
                         } else {
                             ""
                         },
-                        fontSize = 14.sp,
+                        style = MaterialTheme.typography.titleSmall,
                         modifier = Modifier.padding(horizontal = 24.dp),
                     )
                 }
@@ -105,7 +109,7 @@ fun ConsoleScreen(
                     },
                     enabled = admin.state == Admin.State.IN && draft.isNotBlank(),
                 ) {
-                    TextMMD(text = "Send", fontSize = 16.sp)
+                    TextMMD(text = "Send", style = MaterialTheme.typography.titleSmall)
                 }
             }
         }
@@ -115,9 +119,12 @@ fun ConsoleScreen(
 @Composable
 private fun Line(line: ConsoleLine) {
     // Monospaced, because what comes back is a machine's output and its columns mean something.
+    // At the scale's floor rather than below it: a repeater's `status` table is wide, and the
+    // temptation to buy a column by dropping a point is how a panel of sixteen greys ends up
+    // with a line nobody can read outdoors.
     TextMMD(
         text = if (line.fromUs) "> ${line.text}" else line.text,
-        fontSize = 13.sp,
+        style = MaterialTheme.typography.labelSmall,
         fontFamily = FontFamily.Monospace,
         fontWeight = if (line.fromUs) FontWeight.Bold else FontWeight.Normal,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 3.dp),
