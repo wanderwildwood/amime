@@ -20,6 +20,18 @@ class MeshStore(
     private var nextMessageId = 1L
 
     /**
+     * Put back what was on disk, before anything is connected.
+     *
+     * The numbering picks up where it left off rather than starting again, because an id is
+     * what an acknowledgement is matched against within a session and a repeat would settle
+     * the wrong message.
+     */
+    fun restore(conversations: Map<List<Byte>, List<Message>>, nextId: Long) {
+        nextMessageId = maxOf(nextMessageId, nextId)
+        update { copy(conversations = conversations) }
+    }
+
+    /**
      * Sends handed to the radio that it has not answered yet, oldest first.
      *
      * The radio answers command frames in the order it receives them — `handleCmdFrame`

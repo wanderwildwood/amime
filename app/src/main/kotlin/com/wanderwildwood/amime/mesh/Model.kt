@@ -65,6 +65,17 @@ enum class Delivery {
 
     /** The radio refused it. */
     REFUSED,
+
+    /**
+     * Read back from the log still in flight, which means it never landed anywhere.
+     *
+     * The answer it was waiting for travelled while this app was not running, and nothing
+     * will arrive now to settle it either way. It is not pending — nothing is pending once
+     * the process that was waiting has gone — and it is not a failure, because the radio may
+     * well have sent it. It is the one state where the honest thing to say is that nobody
+     * here knows.
+     */
+    UNRESOLVED,
 }
 
 data class Message(
