@@ -342,6 +342,9 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
         store.endAdmin()
     }
 
+    /** Tell the mesh this radio is here, so that somebody can write to it. */
+    fun announce() = session.advertise(flood = true)
+
     fun send(person: Person, text: String, now: Long = System.currentTimeMillis() / 1000) {
         val prefix = person.prefix.toByteArray()
         store.recordSent(person.prefix, text, now)

@@ -240,6 +240,34 @@ class SessionTest {
     }
 
     /**
+     * The only way a companion node tells the mesh it exists. There is no advert timer in
+     * that firmware — a repeater has one, a companion does not — so a radio whose app never
+     * sends this is a radio nobody can add as a contact.
+     */
+    @Test
+    fun `announcing floods rather than telling only the neighbours`() {
+        session.start()
+        transport.clear()
+
+        session.advertise()
+
+        assertEquals(listOf(Cmd.SEND_SELF_ADVERT), transport.opcodes())
+        // Byte 1 is the firmware's optional parameter: 1 floods through the mesh, 0 or
+        // absent reaches only whoever is directly in earshot.
+        assertEquals(1, transport.sent.single()[1].toInt())
+    }
+
+    @Test
+    fun `announcing to the neighbours only is still available`() {
+        session.start()
+        transport.clear()
+
+        session.advertise(flood = false)
+
+        assertEquals(0, transport.sent.single()[1].toInt())
+    }
+
+    /**
      * The push carries the whole key; a contact is addressed by its first six bytes, and the
      * six are what the rest of the app has to match against.
      */

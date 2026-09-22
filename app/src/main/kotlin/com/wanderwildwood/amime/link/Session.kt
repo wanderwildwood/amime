@@ -164,6 +164,22 @@ class Session(
         transport.send(Commands.sendTextMessage(recipientPrefix, text, timestamp))
     }
 
+    /**
+     * Tell the mesh this radio is here.
+     *
+     * Nothing else does. A companion node has **no advert timer at all** — unlike a repeater,
+     * which re-advertises every couple of minutes by default — and `createSelfAdvert` is
+     * reachable only from a button on the node's own screen or from this command. A radio
+     * that never advertises is a radio nobody can add as a contact and nobody can write to,
+     * however well it hears them.
+     *
+     * [flood] sends it through the mesh rather than to whoever is directly in earshot. That
+     * is the one that gets you into a stranger's contact list on the far side of a repeater,
+     * and it is a transmission the whole mesh carries, so it belongs behind a deliberate
+     * press rather than on a timer of our own.
+     */
+    fun advertise(flood: Boolean = true) = transport.send(Commands.sendSelfAdvert(flood))
+
     /** Ask for battery and storage. */
     fun refreshBattery() = transport.send(Commands.getBattAndStorage())
 

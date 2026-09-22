@@ -46,10 +46,12 @@ fun PeopleScreen(
     problem: String?,
     onOpen: (Person) -> Unit,
     onAdminister: (Person, String) -> Unit,
+    onAnnounce: () -> Unit,
     onDismissProblem: () -> Unit,
 ) {
     var aboutOpen by remember { mutableStateOf(false) }
     var loginTo by remember { mutableStateOf<Person?>(null) }
+    var announced by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surface,
@@ -110,6 +112,30 @@ fun PeopleScreen(
                         )
                     }
                 }
+            }
+
+            // Nothing else tells the mesh this radio exists. A companion node has no advert
+            // timer — that is a repeater's job — so without a press here it can hear every
+            // node in range and be in none of their contact lists.
+            if (announced) {
+                TextMMD(
+                    text = stringResource(R.string.people_announced),
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                )
+            }
+            OutlinedButtonMMD(
+                onClick = {
+                    onAnnounce()
+                    announced = true
+                },
+                enabled = state.ready,
+                modifier = Modifier.fillMaxWidth().padding(12.dp),
+            ) {
+                TextMMD(
+                    text = stringResource(R.string.people_announce),
+                    style = MaterialTheme.typography.titleSmall,
+                )
             }
         }
     }

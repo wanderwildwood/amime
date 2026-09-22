@@ -26,6 +26,8 @@
     <!-- Everyone the radio knows -->
     <string name="people_repeater">Repeater</string>
     <string name="people_has_messages">Has messages</string>
+    <string name="people_announce">Announce this radio</string>
+    <string name="people_announced">Announced. Anyone who heard it can write to this radio now.</string>
     <string name="people_not_connected">Not connected to a radio.</string>
     <string name="people_nothing_heard">Nobody yet, and nothing at all on the air since connecting.</string>
     <!-- %1$d is a count of packets; %2$s is either empty or the strongest reading below. -->

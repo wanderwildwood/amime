@@ -95,6 +95,7 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
             problem = problem,
             onOpen = { open = it },
             onAdminister = viewModel::beginAdmin,
+            onAnnounce = viewModel::announce,
             onDismissProblem = viewModel::dismissProblem,
         )
     }
