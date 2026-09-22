@@ -365,6 +365,21 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
         store.endAdmin()
     }
 
+    /**
+     * Throw away the route to somebody, when a message went out along it and nothing came
+     * back. The next one floods and finds its own way.
+     */
+    fun forgetRoute(person: Person) {
+        if (person.publicKey.size != Sizes.PUB_KEY) {
+            _problem.value = say(R.string.problem_no_key)
+            return
+        }
+        session.resetPath(person.publicKey.toByteArray())
+        // The radio does not report this back — it leaves the contact's lastmod alone — so
+        // the app's own copy is put right here or not at all.
+        store.forgetRoute(person.prefix)
+    }
+
     /** Everything in this thread has been seen, on the way in and again on the way out. */
     fun markRead(person: Person) = store.markRead(person.prefix)
 

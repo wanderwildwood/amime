@@ -73,6 +73,8 @@
     <string name="message_sending">Sending</string>
     <string name="message_waiting">Waiting for a confirmation</string>
     <string name="message_unanswered">Sent, and no confirmation came in the time the radio expected</string>
+    <!-- Shown under a message nobody answered, where the radio has a route it could stop using. -->
+    <string name="message_forget_route">Tap to forget the route this took, and let the next message find its own way.</string>
     <string name="message_unresolved">Sent before this app was last closed; no answer was ever seen</string>
     <string name="message_through_mesh">Through the mesh</string>
     <string name="message_weak_signal">Weak signal</string>

@@ -1,6 +1,7 @@
 package com.wanderwildwood.amime.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -50,6 +51,7 @@ fun ConversationScreen(
     conversation: Conversation,
     canSend: Boolean,
     onSend: (String) -> Unit,
+    onForgetRoute: () -> Unit,
     onBack: () -> Unit,
 ) {
     var draft by remember { mutableStateOf("") }
@@ -73,6 +75,25 @@ fun ConversationScreen(
      * are no pictures, and the radio will not carry more than 160 bytes, which is three or
      * four lines. Every item is smaller than a page, so paging by items is paging by pages.
      */
+    /*
+     * Where to offer forgetting the route, if anywhere.
+     *
+     * Under the newest message that went unanswered, and only while there is a route to
+     * forget: a message that floods already found its own way, so nothing here would help.
+     * Under every unanswered message would be the same sentence three times over, and on a
+     * thread where the route is fine it would be a remedy for nothing.
+     */
+    val staleRoute = conversation.person.pathKnown
+    val offerUnder = remember(conversation.messages, staleRoute) {
+        if (!staleRoute) {
+            null
+        } else {
+            conversation.messages.lastOrNull {
+                it.mine && it.delivery == Delivery.UNANSWERED
+            }?.id
+        }
+    }
+
     val listState = rememberLazyListState()
     LaunchedEffect(conversation.messages.size) {
         if (conversation.messages.isNotEmpty()) {
@@ -96,7 +117,23 @@ fun ConversationScreen(
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             LazyColumnMMD(state = listState, modifier = Modifier.weight(1f).fillMaxWidth()) {
                 items(conversation.messages.size) { index ->
-                    MessageRow(conversation.messages[index])
+                    val message = conversation.messages[index]
+                    // One item rather than two emissions, so that the offer stays on the
+                    // same page as the message it is about — MMD's list turns pages by
+                    // counting items, not by measuring them.
+                    Column {
+                        MessageRow(message)
+                        if (message.id == offerUnder) {
+                            TextMMD(
+                                text = stringResource(R.string.message_forget_route),
+                                style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(onClick = onForgetRoute)
+                                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                            )
+                        }
+                    }
                 }
             }
 

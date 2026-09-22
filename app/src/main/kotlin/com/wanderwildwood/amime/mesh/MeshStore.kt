@@ -93,6 +93,21 @@ class MeshStore(
     }
 
     /**
+     * Mark a contact as having no known route.
+     *
+     * Kept in step by hand because the radio will not say it again: it changes the contact
+     * and leaves `lastmod` alone on purpose, so nothing arrives later to correct a border
+     * still drawn solid over a route that has been thrown away.
+     */
+    fun forgetRoute(prefix: List<Byte>) = update {
+        copy(
+            people = people.map {
+                if (it.prefix == prefix) it.copy(pathKnown = false) else it
+            },
+        )
+    }
+
+    /**
      * Forget everything from a connection that has gone.
      *
      * Including what the antenna heard. The screen says "since connecting" and that has to

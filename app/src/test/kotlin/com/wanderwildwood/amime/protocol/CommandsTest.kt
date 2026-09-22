@@ -182,4 +182,27 @@ class CommandsTest {
         assertArrayEquals(byteArrayOf(10), Commands.syncNextMessage())
         assertArrayEquals(byteArrayOf(20), Commands.getBattAndStorage())
     }
+
+    /**
+     * The whole key, like a login and unlike a message. The firmware looks a contact up on
+     * the full 32 bytes here and answers the wrong length with a bare not-found.
+     */
+    @Test
+    fun `resetting a path is addressed by the whole key`() {
+        val key = ByteArray(Sizes.PUB_KEY) { 0x44 }
+
+        val frame = Commands.resetPath(key)
+
+        assertEquals(1 + Sizes.PUB_KEY, frame.size)
+        assertEquals(Cmd.RESET_PATH, frame[0].toInt())
+        assertArrayEquals(key, frame.copyOfRange(1, 1 + Sizes.PUB_KEY))
+    }
+
+    @Test
+    fun `resetting a path refuses the prefix a message would use`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            Commands.resetPath(ByteArray(Sizes.PUB_KEY_PREFIX))
+        }
+    }
+
 }

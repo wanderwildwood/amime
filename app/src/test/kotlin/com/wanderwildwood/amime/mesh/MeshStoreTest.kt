@@ -262,6 +262,24 @@ class MeshStoreTest {
     }
 
     /**
+     * The radio changes the contact and leaves its `lastmod` alone on purpose, so nothing
+     * ever arrives to correct a border still drawn over a route that was thrown away. The
+     * app's own copy is put right when the command goes out or not at all.
+     */
+    @Test
+    fun `forgetting a route leaves the contact without one`() {
+        store.onContact(contact("ridge", key = 0x11, pathLen = 3))
+        store.onContact(contact("hollow", key = 0x22, pathLen = 3))
+        assertTrue(store.state.people.first { it.label == "ridge" }.pathKnown)
+
+        store.forgetRoute(ridge)
+
+        assertFalse(store.state.people.first { it.label == "ridge" }.pathKnown)
+        // The other contact's route is not this one's business.
+        assertTrue(store.state.people.first { it.label == "hollow" }.pathKnown)
+    }
+
+    /**
      * A contact list on a community mesh is mostly not people. Each kind wants something
      * different done with it, and a row that does not say which invites a conversation with
      * a machine that will never answer.

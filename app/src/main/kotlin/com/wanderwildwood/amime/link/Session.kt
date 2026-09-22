@@ -180,6 +180,15 @@ class Session(
      */
     fun advertise(flood: Boolean = true) = transport.send(Commands.sendSelfAdvert(flood))
 
+    /**
+     * Forget the route to a contact, so the next message to them finds its own way.
+     *
+     * The radio does this and says OK, and then never mentions it again — it does not touch
+     * the contact's `lastmod`, so a sync will not report it. The caller has to put its own
+     * copy right.
+     */
+    fun resetPath(publicKey: ByteArray) = transport.send(Commands.resetPath(publicKey))
+
     /** Ask for battery and storage. */
     fun refreshBattery() = transport.send(Commands.getBattAndStorage())
 

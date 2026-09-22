@@ -193,6 +193,28 @@ object Commands {
             txtType = TxtType.CLI_DATA,
         )
 
+    /**
+     * Throw away the route the radio has been using to reach a contact.
+     *
+     * Takes the **whole 32-byte key**, like a login and unlike a message. The radio sets the
+     * contact's path back to unknown, which means the next message to them floods instead of
+     * following a route that may no longer exist — a repeater that moved, or a node that
+     * went away — and a reply to that flood teaches it the new one.
+     *
+     * ⚠ The firmware does **not** bump the contact's `lastmod` when it does this: the comment
+     * in `MyMesh.cpp` says the app already has this version of the contact. So a sync for
+     * what has changed will never report it, and an app that waits to be told will go on
+     * drawing a route that has been thrown away. Whoever sends this updates their own copy.
+     *
+     * Answered with an OK, or with a not-found for a contact the radio does not have.
+     */
+    fun resetPath(publicKey: ByteArray): ByteArray {
+        require(publicKey.size == Sizes.PUB_KEY) {
+            "a path is reset by the whole ${Sizes.PUB_KEY}-byte key, got ${publicKey.size}"
+        }
+        return FrameWriter(1 + Sizes.PUB_KEY).u8(Cmd.RESET_PATH).bytes(publicKey).build()
+    }
+
     /** Re-advertise this node so others can find it. */
     fun sendSelfAdvert(flood: Boolean = false): ByteArray =
         FrameWriter(2).u8(Cmd.SEND_SELF_ADVERT).u8(if (flood) 1 else 0).build()
