@@ -22,6 +22,7 @@ class MessageLog(private val file: File) {
     data class Restored(
         val conversations: Map<List<Byte>, List<Message>> = emptyMap(),
         val nextId: Long = 1L,
+        val readUpTo: Map<List<Byte>, Long> = emptyMap(),
     )
 
     /** Read the log, treating anything unreadable as absent rather than as a reason to fail. */
@@ -35,9 +36,12 @@ class MessageLog(private val file: File) {
      * otherwise leaves a file that is half of two versions, and the half it keeps is the one
      * that fails to parse.
      */
-    fun write(conversations: Map<List<Byte>, List<Message>>) {
+    fun write(
+        conversations: Map<List<Byte>, List<Message>>,
+        readUpTo: Map<List<Byte>, Long> = emptyMap(),
+    ) {
         val temporary = File(file.parentFile, file.name + ".writing")
-        temporary.writeText(encode(conversations))
+        temporary.writeText(encode(conversations, readUpTo))
         if (!temporary.renameTo(file)) {
             temporary.delete()
             throw java.io.IOException("could not replace ${file.name}")
@@ -56,8 +60,25 @@ class MessageLog(private val file: File) {
 
         private const val ABSENT = "-"
 
-        fun encode(conversations: Map<List<Byte>, List<Message>>): String = buildString {
+        /**
+         * What marks a line as a read mark rather than a message.
+         *
+         * Three fields where a message has eight, so a reader that does not know about them
+         * skips them for being short rather than mangling them — which is why this did not
+         * need a new format number.
+         */
+        private const val READ_MARK = "read"
+
+        fun encode(
+            conversations: Map<List<Byte>, List<Message>>,
+            readUpTo: Map<List<Byte>, Long> = emptyMap(),
+        ): String = buildString {
             appendLine(HEADER)
+            for ((prefix, id) in readUpTo) {
+                append(READ_MARK).append('\t')
+                append(prefix.joinToString("") { "%02x".format(it) }).append('\t')
+                appendLine(id)
+            }
             for ((prefix, thread) in conversations) {
                 val hex = prefix.joinToString("") { "%02x".format(it) }
                 for (message in thread) {
@@ -84,10 +105,17 @@ class MessageLog(private val file: File) {
             if (!lines.hasNext() || lines.next() != HEADER) return Restored()
 
             val conversations = linkedMapOf<List<Byte>, MutableList<Message>>()
+            val readUpTo = linkedMapOf<List<Byte>, Long>()
             var highestId = 0L
             for (line in lines) {
                 if (line.isEmpty()) continue
                 val field = line.split('\t', limit = FIELDS)
+                if (field.size >= 3 && field[0] == READ_MARK) {
+                    val prefix = runCatching { hex(field[1]) }.getOrNull() ?: continue
+                    val id = field[2].toLongOrNull() ?: continue
+                    readUpTo[prefix] = id
+                    continue
+                }
                 if (field.size < FIELDS) continue
                 val prefix = runCatching { hex(field[0]) }.getOrNull() ?: continue
                 val id = field[1].toLongOrNull() ?: continue
@@ -108,7 +136,7 @@ class MessageLog(private val file: File) {
                     ),
                 )
             }
-            return Restored(conversations, highestId + 1)
+            return Restored(conversations, highestId + 1, readUpTo)
         }
 
         /**

@@ -33,9 +33,25 @@ class MeshStore(
      * what an acknowledgement is matched against within a session and a repeat would settle
      * the wrong message.
      */
-    fun restore(conversations: Map<List<Byte>, List<Message>>, nextId: Long) {
+    fun restore(
+        conversations: Map<List<Byte>, List<Message>>,
+        nextId: Long,
+        readUpTo: Map<List<Byte>, Long> = emptyMap(),
+    ) {
         nextMessageId = maxOf(nextMessageId, nextId)
-        update { copy(conversations = conversations) }
+        update { copy(conversations = conversations, readUpTo = readUpTo) }
+    }
+
+    /**
+     * Everything in this thread has now been seen.
+     *
+     * Called on the way into a conversation and again on the way out, because anything that
+     * arrived while it was open was read as it landed.
+     */
+    fun markRead(prefix: List<Byte>) {
+        val newest = state.conversations[prefix].orEmpty().maxOfOrNull { it.id } ?: return
+        if (state.readUpTo[prefix] == newest) return
+        update { copy(readUpTo = readUpTo + (prefix to newest)) }
     }
 
     /**

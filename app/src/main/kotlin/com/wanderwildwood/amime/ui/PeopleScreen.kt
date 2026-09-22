@@ -105,7 +105,7 @@ fun PeopleScreen(
                         val person = state.people[index]
                         PersonRow(
                             person = person,
-                            unread = state.conversations[person.prefix].orEmpty().isNotEmpty(),
+                            unread = state.unreadCount(person.prefix),
                             onClick = {
                                 if (person.isRepeater) loginTo = person else onOpen(person)
                             },
@@ -233,7 +233,7 @@ private fun batteryLine(millivolts: Int): String = stringResource(
 )
 
 @Composable
-private fun PersonRow(person: Person, unread: Boolean, onClick: () -> Unit) {
+private fun PersonRow(person: Person, unread: Int, onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -250,9 +250,9 @@ private fun PersonRow(person: Person, unread: Boolean, onClick: () -> Unit) {
                 text = stringResource(R.string.people_repeater),
                 style = MaterialTheme.typography.labelSmall,
             )
-        } else if (unread) {
+        } else if (unread > 0) {
             TextMMD(
-                text = stringResource(R.string.people_has_messages),
+                text = pluralStringResource(R.plurals.people_unread, unread, unread),
                 style = MaterialTheme.typography.labelSmall,
             )
         }

@@ -198,6 +198,69 @@ class MeshStoreTest {
         assertFalse(store.hasAwaitingAcks())
     }
 
+    // ---- what is waiting to be read ----
+
+    /**
+     * The row used to say "has messages" whenever a thread was not empty, which included
+     * every thread anybody had ever written in — so it said it about a conversation where
+     * the only thing in it was your own message, for ever.
+     */
+    @Test
+    fun `your own messages are not waiting to be read`() {
+        store.onContact(contact("ridge", key = 0x11))
+        store.recordSent(ridge, "anyone there", 1)
+
+        assertEquals(0, store.state.unreadCount(ridge))
+    }
+
+    @Test
+    fun `a message that arrives is waiting until the thread is opened`() {
+        store.onContact(contact("ridge", key = 0x11))
+        store.onMessage(received("here", key = 0x11, snr = -4f))
+        store.onMessage(received("and here", key = 0x11, snr = -4f))
+        assertEquals(2, store.state.unreadCount(ridge))
+
+        store.markRead(ridge)
+
+        assertEquals(0, store.state.unreadCount(ridge))
+    }
+
+    @Test
+    fun `one that arrives after the thread was read is waiting again`() {
+        store.onContact(contact("ridge", key = 0x11))
+        store.onMessage(received("here", key = 0x11, snr = -4f))
+        store.markRead(ridge)
+
+        store.onMessage(received("still here", key = 0x11, snr = -4f))
+
+        assertEquals(1, store.state.unreadCount(ridge))
+    }
+
+    @Test
+    fun `reading one thread leaves another alone`() {
+        store.onContact(contact("ridge", key = 0x11))
+        store.onContact(contact("hollow", key = 0x22))
+        store.onMessage(received("from the ridge", key = 0x11, snr = -4f))
+        store.onMessage(received("from the hollow", key = 0x22, snr = -4f))
+
+        store.markRead(ridge)
+
+        assertEquals(0, store.state.unreadCount(ridge))
+        assertEquals(1, store.state.unreadCount(hollow))
+    }
+
+    @Test
+    fun `marking an empty thread read changes nothing`() {
+        var changes = 0
+        val quiet = MeshStore(onChange = { changes++ }, now = { clock })
+        quiet.onContact(contact("ridge", key = 0x11))
+        val before = changes
+
+        quiet.markRead(ridge)
+
+        assertEquals(before, changes)
+    }
+
     @Test
     fun `a repeater is distinguishable from a person`() {
         store.onContact(contact("ridge", key = 0x11, type = AdvType.REPEATER))

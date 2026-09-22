@@ -87,13 +87,20 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
                 ?: com.wanderwildwood.amime.mesh.Conversation(person),
             canSend = state.ready,
             onSend = { viewModel.send(person, it) },
-            onBack = { open = null },
+            onBack = {
+                // Anything that arrived while it was open was read as it landed.
+                viewModel.markRead(person)
+                open = null
+            },
         )
     } else {
         PeopleScreen(
             state = state,
             problem = problem,
-            onOpen = { open = it },
+            onOpen = {
+                viewModel.markRead(it)
+                open = it
+            },
             onAdminister = viewModel::beginAdmin,
             onAnnounce = viewModel::announce,
             onDismissProblem = viewModel::dismissProblem,

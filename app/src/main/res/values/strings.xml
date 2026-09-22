@@ -25,7 +25,11 @@
 
     <!-- Everyone the radio knows -->
     <string name="people_repeater">Repeater</string>
-    <string name="people_has_messages">Has messages</string>
+    <!-- Only messages from the other end, and only ones not yet read. -->
+    <plurals name="people_unread">
+        <item quantity="one">%1$d unread</item>
+        <item quantity="other">%1$d unread</item>
+    </plurals>
     <string name="people_announce">Announce this radio</string>
     <string name="people_announced">Announced. Anyone who heard it can write to this radio now.</string>
     <string name="people_not_connected">Not connected to a radio.</string>

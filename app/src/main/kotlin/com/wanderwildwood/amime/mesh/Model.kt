@@ -118,6 +118,13 @@ data class MeshState(
     val nodeName: String? = null,
     val people: List<Person> = emptyList(),
     val conversations: Map<List<Byte>, List<Message>> = emptyMap(),
+    /**
+     * The newest message already read in each thread.
+     *
+     * Kept per thread rather than as a flag on each message so that opening a conversation
+     * is one entry to write rather than a walk over everything in it.
+     */
+    val readUpTo: Map<List<Byte>, Long> = emptyMap(),
     val batteryMillivolts: Int? = null,
     /** The node being administered, if a login has been attempted. */
     val admin: Admin? = null,
@@ -132,6 +139,18 @@ data class MeshState(
     /** True once the radio has answered the handshake and the app can send. */
     val ready: Boolean = false,
 ) {
+    /**
+     * How many messages in this thread arrived and have not been read.
+     *
+     * Only messages from the other end count. A thread whose only contents are things you
+     * sent has nothing waiting in it, which is what the row used to claim about every
+     * conversation anybody had ever opened.
+     */
+    fun unreadCount(prefix: List<Byte>): Int {
+        val read = readUpTo[prefix] ?: 0L
+        return conversations[prefix].orEmpty().count { !it.mine && it.id > read }
+    }
+
     fun conversationWith(prefix: List<Byte>): Conversation? =
         people.firstOrNull { it.prefix == prefix }
             ?.let { Conversation(it, conversations[prefix].orEmpty()) }

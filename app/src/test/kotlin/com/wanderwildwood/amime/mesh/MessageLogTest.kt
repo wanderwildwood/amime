@@ -108,6 +108,44 @@ class MessageLogTest {
         )
     }
 
+    // ---- what has been read ----
+
+    @Test
+    fun `read marks survive being written and read back`() {
+        val conversations = mapOf(ridge to listOf(message(1), message(2)))
+        val readUpTo = mapOf(ridge to 2L, hollow to 7L)
+
+        val restored = MessageLog.decode(MessageLog.encode(conversations, readUpTo))
+
+        assertEquals(readUpTo, restored.readUpTo)
+        assertEquals(conversations, restored.conversations)
+    }
+
+    /**
+     * A read mark has three fields where a message has eight, so a version that knows
+     * nothing about them skips them for being short. That is why they could be added without
+     * a new format number, and it is worth a test rather than a comment.
+     */
+    @Test
+    fun `a read mark is not mistaken for a message`() {
+        val restored = MessageLog.decode(
+            MessageLog.encode(emptyMap(), mapOf(ridge to 4L)),
+        )
+
+        assertTrue(restored.conversations.isEmpty())
+        assertEquals(mapOf(ridge to 4L), restored.readUpTo)
+        // Numbering is not advanced by something that is not a message.
+        assertEquals(1L, restored.nextId)
+    }
+
+    @Test
+    fun `a log with no read marks reads as nothing read`() {
+        val restored = MessageLog.decode(
+            MessageLog.encode(mapOf(ridge to listOf(message(1)))),
+        )
+        assertEquals(emptyMap<List<Byte>, Long>(), restored.readUpTo)
+    }
+
     // ---- reading something that is not this ----
 
     @Test

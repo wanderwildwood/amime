@@ -81,11 +81,11 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
      * number. The whole log is rewritten each time, which is cheap at the size this gets to
      * and leaves nothing to go wrong that an append could not also get wrong.
      */
-    private val toSave = MutableStateFlow<Map<List<Byte>, List<Message>>?>(null)
+    private val toSave = MutableStateFlow<MeshState?>(null)
 
     private val store = MeshStore(onChange = {
         _state.value = it
-        toSave.value = it.conversations
+        toSave.value = it
         // The radio has said who it is, which is the end of connecting and the end of
         // waiting to hear from it.
         if (it.ready) {
@@ -178,14 +178,15 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
         // What survived the last time the process went away. The radio does not keep a copy:
         // a message it has handed over is a message it no longer has.
         val restored = log.read()
-        store.restore(restored.conversations, restored.nextId)
+        store.restore(restored.conversations, restored.nextId, restored.readUpTo)
 
         viewModelScope.launch(Dispatchers.IO) {
-            var written = restored.conversations
-            toSave.filterNotNull().collect { conversations ->
-                if (conversations == written) return@collect
-                runCatching { log.write(conversations) }
-                    .onSuccess { written = conversations }
+            var written = restored.conversations to restored.readUpTo
+            toSave.filterNotNull().collect { saving ->
+                val next = saving.conversations to saving.readUpTo
+                if (next == written) return@collect
+                runCatching { log.write(next.first, next.second) }
+                    .onSuccess { written = next }
                     // Worth saying rather than logging: it means this session's messages are
                     // the only copy, and there will be nothing to read tomorrow.
                     .onFailure { _problem.value = say(R.string.problem_not_saving) }
@@ -364,6 +365,9 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
         store.endAdmin()
     }
 
+    /** Everything in this thread has been seen, on the way in and again on the way out. */
+    fun markRead(person: Person) = store.markRead(person.prefix)
+
     /** Tell the mesh this radio is here, so that somebody can write to it. */
     fun announce() = session.advertise(flood = true)
 
@@ -386,7 +390,7 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
         // The writer runs in this scope and the scope is about to be cancelled, so anything
         // that arrived in the last moment would go with it. A few kilobytes written on the
         // way out is the cheapest way to make the last message as safe as the rest.
-        runCatching { log.write(state.value.conversations) }
+        runCatching { log.write(state.value.conversations, state.value.readUpTo) }
         super.onCleared()
     }
 
