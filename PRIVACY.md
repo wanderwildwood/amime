@@ -41,6 +41,12 @@ Android reclaimed the process.
 nothing is synchronised. Contacts are not stored here at all — they live on the radio and are
 read from it at every connection.
 
+One thing is stored somewhere else, briefly, and it is not this app's doing. A message that
+arrives while the app is closed waits **on the radio**, in its memory, already decrypted and
+ready to be handed over — that is what makes it possible to collect later. It leaves the radio
+when this app takes it, and it is gone anyway if the radio loses power, because that queue is
+memory rather than storage. Whoever holds the radio holds those messages until then.
+
 ## What leaves the phone
 
 Everything this app sends goes over Bluetooth to the radio beside you, and from there over

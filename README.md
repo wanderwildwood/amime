@@ -159,6 +159,28 @@ live; what the antenna heard is about this session and does not outlast it.
 message's body is encrypted to the contact it is for, who it is between is not, and an advert
 is not encrypted at all — which is exactly what makes a radio addressable.
 
+## While the app is closed
+
+Nothing runs in the background and nothing arrives as a notification. A message sent to you
+while this is shut waits **on the radio**, and you find it when you next open the app. That is
+a choice rather than an omission: a foreground service and a permanent notification are what it
+would take to do otherwise, on a phone whose whole point is not interrupting you.
+
+Two things about that wait are the firmware's, and worth knowing before you rely on it:
+
+- **The queue is 256 deep on a ThinkNode M5** — `OFFLINE_QUEUE_SIZE` in the
+  `ThinkNode_M5_companion_radio_ble` environment. ⚠ The default in `MyMesh.h` is **16**, so a
+  board whose variant does not raise it holds far less than this one does. Check the variant
+  rather than the header.
+- **When it does fill, the newest message is the one that goes.** `addToOfflineQueue` looks for
+  the oldest *channel* message to evict, and this app never creates one, so there is never
+  anything to evict and the arriving message is dropped where it stands. Nothing is logged to
+  the app and nothing can detect it from this end.
+
+And the queue is in RAM: `Frame offline_queue[OFFLINE_QUEUE_SIZE]` is a member array with no
+save or load anywhere near it, so **anything waiting is gone if the radio restarts**. Power the
+node down with messages on it and they were never received as far as anyone here is concerned.
+
 ## Building
 
 ```
