@@ -54,6 +54,11 @@ fun AboutDialog(onDismiss: () -> Unit) {
         )
         Spacer(Modifier.height(14.dp))
         TextMMD(
+            text = stringResource(R.string.about_while_closed),
+            style = MaterialTheme.typography.labelSmall,
+        )
+        Spacer(Modifier.height(14.dp))
+        TextMMD(
             text = stringResource(R.string.about_licence),
             style = MaterialTheme.typography.labelSmall,
         )
