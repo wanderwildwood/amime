@@ -118,6 +118,17 @@ data class Message(
      * and this app knows none of those.
      */
     val awaitingUntil: Long? = null,
+    /**
+     * How many times this has been handed to the radio: 0 for the first, 1 for the first
+     * retry, and so on.
+     *
+     * The firmware mixes it into the packet — `temp[4] = attempt and 3` — and the expected
+     * acknowledgement is a hash over that, so every attempt has an acknowledgement of its
+     * own and a late one for an earlier try still settles the message. Not written to the
+     * log: after a restart a message is unresolved rather than unanswered, and counting
+     * attempts across a restart would be counting something nobody is waiting on.
+     */
+    val attempt: Int = 0,
 )
 
 data class Conversation(

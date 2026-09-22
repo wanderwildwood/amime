@@ -96,4 +96,55 @@ class OperationQueueTest {
         queue.completeCurrent()
         assertEquals(1, queue.depth)
     }
+
+    // ---- an operation that never calls back ----
+
+    /**
+     * Android's GATT stack does not always call back. A write to a link that is failing but
+     * not yet declared dead can simply never complete, and everything here waits on the one
+     * in flight — so without a way out the queue stops for good, while the app goes on
+     * looking connected.
+     */
+    @Test
+    fun `an operation that never answers can be given up on`() {
+        val started = mutableListOf<Long>()
+        val queue = OperationQueue(onStarted = { started += it })
+        val ran = mutableListOf<String>()
+        queue.enqueue { ran += "first"; true }
+        queue.enqueue { ran += "second"; true }
+
+        assertEquals(listOf("first"), ran)
+        assertTrue(queue.isBusy)
+
+        assertTrue(queue.abandonIfStuck(started.first()))
+
+        assertEquals(listOf("first", "second"), ran)
+    }
+
+    /**
+     * By the time a watchdog looks, the operation it was watching may have finished and
+     * three more may have come and gone. Abandoning whatever happens to be running then
+     * would throw away a perfectly healthy one.
+     */
+    @Test
+    fun `a watchdog for an operation that already finished abandons nothing`() {
+        val started = mutableListOf<Long>()
+        val queue = OperationQueue(onStarted = { started += it })
+        queue.enqueue { true }
+        val first = started.first()
+        queue.completeCurrent()
+        queue.enqueue { true }
+
+        assertFalse(queue.abandonIfStuck(first))
+
+        // The one that is genuinely running is untouched.
+        assertTrue(queue.isBusy)
+    }
+
+    @Test
+    fun `an idle queue has nothing to give up on`() {
+        val queue = OperationQueue()
+        assertFalse(queue.abandonIfStuck(1))
+    }
+
 }

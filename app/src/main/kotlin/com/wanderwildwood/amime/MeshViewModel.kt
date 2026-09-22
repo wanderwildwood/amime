@@ -55,6 +55,7 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
 
     private var handshakeWatch: Job? = null
     private var ackWatch: Job? = null
+    private var batteryWatch: Job? = null
 
     private val _pairing = MutableStateFlow(false)
 
@@ -146,12 +147,14 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
                 session.start()
                 session.syncContacts()
                 session.refreshBattery()
+                watchBattery()
             }
 
             override fun onFrame(frame: ByteArray) = session.onFrame(frame)
 
             override fun onDisconnected() {
                 handshakeWatch?.cancel()
+                batteryWatch?.cancel()
                 _connecting.value = null
                 store.onDisconnected()
             }
@@ -383,6 +386,48 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
     /** Everything in this thread has been seen, on the way in and again on the way out. */
     fun markRead(person: Person) = store.markRead(person.prefix)
 
+    /**
+     * Ask the radio how much battery it has left, now and then.
+     *
+     * It was asked once, at the moment of connecting, and the answer then sat in the bar for
+     * as long as the app was open — which is fine at a desk and wrong on a walk, where the
+     * reading is the one that matters and the walk is hours long.
+     *
+     * The state only reaches the screen when it changes, so a reading identical to the last
+     * costs nothing: an equal value is not emitted and nothing repaints.
+     */
+    private fun watchBattery() {
+        batteryWatch?.cancel()
+        batteryWatch = viewModelScope.launch {
+            while (true) {
+                delay(BATTERY_INTERVAL_MS)
+                if (!state.value.ready) return@launch
+                session.refreshBattery()
+            }
+        }
+    }
+
+    /**
+     * Send a message again, where the first one went out and nothing came back.
+     *
+     * Where the radio has a route to them, that route is thrown away first: a message that
+     * went unanswered along a known path is most likely a path that no longer exists, and
+     * sending the same way again would be the same silence twice. Without one it already
+     * floods, and there is nothing to forget.
+     */
+    fun sendAgain(
+        person: Person,
+        message: Message,
+        now: Long = System.currentTimeMillis() / 1000,
+    ) {
+        if (person.pathKnown && person.publicKey.size == Sizes.PUB_KEY) {
+            session.resetPath(person.publicKey.toByteArray())
+            store.forgetRoute(person.prefix)
+        }
+        val attempt = store.recordResend(person.prefix, message.id) ?: return
+        session.sendMessage(person.prefix.toByteArray(), message.text, now, attempt)
+    }
+
     /** Tell the mesh this radio is here, so that somebody can write to it. */
     fun announce() = session.advertise(flood = true)
 
@@ -400,6 +445,7 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
     override fun onCleared() {
         handshakeWatch?.cancel()
         ackWatch?.cancel()
+        batteryWatch?.cancel()
         scanner.stop()
         transport.disconnect()
         // The writer runs in this scope and the scope is about to be cancelled, so anything
@@ -429,5 +475,13 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
          * repaint.
          */
         const val ACK_CHECK_MS = 5_000L
+
+        /**
+         * How often to ask the radio about its battery.
+         *
+         * A cell does not move quickly and each ask is a frame each way, so this is coarse.
+         * It exists for the walk rather than the desk.
+         */
+        const val BATTERY_INTERVAL_MS = 5 * 60_000L
     }
 }

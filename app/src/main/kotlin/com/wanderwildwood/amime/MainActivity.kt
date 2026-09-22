@@ -86,7 +86,7 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
             conversation = state.conversationWith(person.prefix)
                 ?: com.wanderwildwood.amime.mesh.Conversation(person),
             canSend = state.ready,
-            onForgetRoute = { viewModel.forgetRoute(person) },
+            onSendAgain = { viewModel.sendAgain(person, it) },
             onSend = { viewModel.send(person, it) },
             onBack = {
                 // Anything that arrived while it was open was read as it landed.

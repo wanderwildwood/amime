@@ -11,6 +11,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
@@ -74,7 +76,26 @@ class BleTransport(
 
     private var gatt: BluetoothGatt? = null
     private var rx: BluetoothGattCharacteristic? = null
-    private val queue = OperationQueue { fail(R.string.ble_refused) }
+    private val watchdog = Handler(Looper.getMainLooper())
+
+    /**
+     * One GATT operation at a time, with something watching the one in flight.
+     *
+     * The queue cannot time itself — it is kept free of Android so its ordering can be
+     * tested without a radio — so the timer lives here, where there is a Looper anyway.
+     */
+    private val queue: OperationQueue = OperationQueue(
+        onStartFailed = { fail(R.string.ble_refused) },
+        onStarted = ::watchOperation,
+    )
+
+    /** Come back in a while and see whether this same operation is still in flight. */
+    private fun watchOperation(attempt: Long) {
+        watchdog.postDelayed(
+            { if (queue.abandonIfStuck(attempt)) fail(R.string.ble_no_answer) },
+            OPERATION_PATIENCE_MS,
+        )
+    }
 
     private var bondReceiver: BroadcastReceiver? = null
 
@@ -91,6 +112,7 @@ class BleTransport(
 
     fun disconnect() {
         unregisterBondReceiver()
+        watchdog.removeCallbacksAndMessages(null)
         queue.clear()
         rx = null
         gatt?.let {
@@ -342,6 +364,16 @@ class BleTransport(
 
         /** Three bytes of ATT opcode and handle come off every MTU before any payload. */
         const val ATT_HEADER = 3
+
+        /**
+         * How long one GATT operation may take before it is given up on.
+         *
+         * Generous next to what these actually take — a write or a descriptor write is tens
+         * of milliseconds, service discovery a second or two — because the cost of being
+         * wrong in one direction is a frame abandoned that was about to succeed, and in the
+         * other it is a link that never sends anything again and says nothing about it.
+         */
+        const val OPERATION_PATIENCE_MS = 10_000L
     }
 }
 

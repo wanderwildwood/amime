@@ -159,9 +159,21 @@ class Session(
         transport.send(Commands.getContacts(since))
     }
 
-    /** Send plain text to a contact, addressed by the six-byte prefix of its key. */
-    fun sendMessage(recipientPrefix: ByteArray, text: String, timestamp: Long) {
-        transport.send(Commands.sendTextMessage(recipientPrefix, text, timestamp))
+    /**
+     * Send plain text to a contact, addressed by the six-byte prefix of its key.
+     *
+     * [attempt] is 0 for a first send. The firmware keeps only its low two bits in the
+     * ordinary slot and hides anything above 3 at the tail of the payload, which costs two
+     * bytes of the text — so a caller that goes past 3 has to leave room for it, and this
+     * app does not go past 3.
+     */
+    fun sendMessage(
+        recipientPrefix: ByteArray,
+        text: String,
+        timestamp: Long,
+        attempt: Int = 0,
+    ) {
+        transport.send(Commands.sendTextMessage(recipientPrefix, text, timestamp, attempt))
     }
 
     /**

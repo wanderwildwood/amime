@@ -14,6 +14,14 @@ package com.wanderwildwood.amime.ble
 class OperationQueue(
     /** Told when an operation could not even be started, so a caller can give up on it. */
     private val onStartFailed: (Operation) -> Unit = {},
+    /**
+     * Told that an operation has begun, with a number that identifies this one attempt.
+     *
+     * Exists so that somebody who can keep time — this class cannot; it has no clock and no
+     * Android in it on purpose — can come back later and ask whether the same operation is
+     * still in flight. See [abandonIfStuck].
+     */
+    private val onStarted: (Long) -> Unit = {},
 ) {
 
     /**
@@ -26,6 +34,15 @@ class OperationQueue(
 
     private val pending = ArrayDeque<Operation>()
     private var running: Operation? = null
+
+    /**
+     * Which attempt is in flight, counted from the first.
+     *
+     * A bare "is something running" cannot answer the question a watchdog has to ask, which
+     * is whether *the* operation it was watching is still the one running — by the time it
+     * looks, that one may have finished and three more may have come and gone.
+     */
+    private var attempt = 0L
 
     val isBusy: Boolean get() = running != null
     val depth: Int get() = pending.size + if (running == null) 0 else 1
@@ -46,6 +63,24 @@ class OperationQueue(
         startNext()
     }
 
+    /**
+     * Give up on an operation that never called back, if it is still the one in flight.
+     *
+     * Android's GATT stack does not always call back. A write to a link that is failing but
+     * has not yet been declared dead can simply never complete, and because everything here
+     * waits for the one in flight, the queue stops for good: the app stays connected, the
+     * screen shows nothing wrong, and no frame ever leaves again. A disconnect would clear
+     * it, but this is the case where no disconnect comes.
+     *
+     * Returns whether anything was abandoned, so a caller can say so rather than guess.
+     */
+    fun abandonIfStuck(which: Long): Boolean {
+        if (running == null || attempt != which) return false
+        running = null
+        startNext()
+        return true
+    }
+
     /** Drop everything, on disconnect. Nothing queued survives a connection. */
     fun clear() {
         pending.clear()
@@ -56,6 +91,8 @@ class OperationQueue(
         while (running == null) {
             val next = pending.removeFirstOrNull() ?: return
             running = next
+            attempt++
+            onStarted(attempt)
             if (!next.start()) {
                 // No callback is coming for an operation that never started, so completing it
                 // here is the only thing that keeps the queue moving.

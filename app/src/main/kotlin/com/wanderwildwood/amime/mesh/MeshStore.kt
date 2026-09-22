@@ -108,6 +108,42 @@ class MeshStore(
     }
 
     /**
+     * Hand an existing message back to the radio.
+     *
+     * The same row rather than a new one: a thread showing the same sentence three times is
+     * a worse account of what happened than one row that says it was tried three times.
+     * Returns the attempt number to send it under, or null where there is nothing to resend.
+     *
+     * The acknowledgement hash of the earlier attempt is deliberately left on the books. Each
+     * attempt has its own, the radio may yet answer either, and the first one arriving late
+     * settles this message just as well as the newest would.
+     */
+    fun recordResend(prefix: List<Byte>, id: Long): Int? {
+        val thread = state.conversations[prefix] ?: return null
+        val message = thread.firstOrNull { it.id == id } ?: return null
+        val attempt = (message.attempt + 1).coerceAtMost(MAX_ATTEMPT)
+        unanswered.addLast(prefix to id)
+        update {
+            copy(
+                conversations = conversations + (
+                    prefix to thread.map {
+                        if (it.id == id) {
+                            it.copy(
+                                delivery = Delivery.SENDING,
+                                awaitingUntil = null,
+                                attempt = attempt,
+                            )
+                        } else {
+                            it
+                        }
+                    }
+                    ),
+            )
+        }
+        return attempt
+    }
+
+    /**
      * Forget everything from a connection that has gone.
      *
      * Including what the antenna heard. The screen says "since connecting" and that has to
@@ -296,6 +332,18 @@ class MeshStore(
                     ),
             )
         }
+    }
+
+    private companion object {
+        /**
+         * As far as the attempt number is taken.
+         *
+         * Above three the firmware stops keeping it in its own byte and hides it at the end
+         * of the payload, which costs two bytes of the message and refuses to send at all if
+         * the text is within two of the maximum. Three tries is where a person gives up
+         * anyway, and the timestamp keeps each packet distinct regardless.
+         */
+        const val MAX_ATTEMPT = 3
     }
 
     private inline fun update(block: MeshState.() -> MeshState) {

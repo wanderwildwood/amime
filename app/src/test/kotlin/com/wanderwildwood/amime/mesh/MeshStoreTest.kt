@@ -198,6 +198,76 @@ class MeshStoreTest {
         assertFalse(store.hasAwaitingAcks())
     }
 
+    // ---- sending it again ----
+
+    @Test
+    fun `sending again reuses the row rather than adding one`() {
+        store.onContact(contact("ridge", key = 0x11))
+        store.recordSent(ridge, "anyone there", 1)
+        store.onSent(sentAwaiting(ack = 0x99, estimatedTimeoutMs = 10), awaitingAck = true)
+        clock += 100
+        store.expireAwaitingAcks()
+
+        val attempt = store.recordResend(ridge, only(ridge).id)
+
+        assertEquals(1, attempt)
+        val message = only(ridge)
+        assertEquals(Delivery.SENDING, message.delivery)
+        assertEquals(1, message.attempt)
+        assertNull(message.awaitingUntil)
+        assertEquals("anyone there", message.text)
+    }
+
+    /**
+     * Above three the firmware stops keeping the attempt in its own byte and hides it at the
+     * tail of the payload, which costs two bytes of the message and refuses outright if the
+     * text is within two of the limit.
+     */
+    @Test
+    fun `the attempt number stops at three`() {
+        store.onContact(contact("ridge", key = 0x11))
+        store.recordSent(ridge, "anyone there", 1)
+        val id = only(ridge).id
+        repeat(6) { store.recordResend(ridge, id) }
+
+        assertEquals(3, only(ridge).attempt)
+    }
+
+    @Test
+    fun `the next answer settles a resent message`() {
+        store.onContact(contact("ridge", key = 0x11))
+        store.recordSent(ridge, "anyone there", 1)
+        store.onSent(sentAwaiting(ack = 0x99, estimatedTimeoutMs = 10), awaitingAck = true)
+        clock += 100
+        store.expireAwaitingAcks()
+        store.recordResend(ridge, only(ridge).id)
+
+        store.onSent(sentAwaiting(ack = 0xAA, estimatedTimeoutMs = 30_000), awaitingAck = true)
+        store.onDelivered(0xAA, roundTripMs = 900)
+
+        assertEquals(Delivery.ACKNOWLEDGED, only(ridge).delivery)
+    }
+
+    /** Each attempt has its own acknowledgement, and an early one still settles the row. */
+    @Test
+    fun `an answer to the first try still settles a resent message`() {
+        store.onContact(contact("ridge", key = 0x11))
+        store.recordSent(ridge, "anyone there", 1)
+        store.onSent(sentAwaiting(ack = 0x99, estimatedTimeoutMs = 10), awaitingAck = true)
+        clock += 100
+        store.expireAwaitingAcks()
+        store.recordResend(ridge, only(ridge).id)
+
+        store.onDelivered(0x99, roundTripMs = 60_000)
+
+        assertEquals(Delivery.ACKNOWLEDGED, only(ridge).delivery)
+    }
+
+    @Test
+    fun `there is nothing to resend in a thread that does not exist`() {
+        assertNull(store.recordResend(ridge, 1))
+    }
+
     // ---- what is waiting to be read ----
 
     /**

@@ -51,7 +51,7 @@ fun ConversationScreen(
     conversation: Conversation,
     canSend: Boolean,
     onSend: (String) -> Unit,
-    onForgetRoute: () -> Unit,
+    onSendAgain: (Message) -> Unit,
     onBack: () -> Unit,
 ) {
     var draft by remember { mutableStateOf("") }
@@ -76,21 +76,22 @@ fun ConversationScreen(
      * four lines. Every item is smaller than a page, so paging by items is paging by pages.
      */
     /*
-     * Where to offer forgetting the route, if anywhere.
+     * Where to offer sending it again, if anywhere.
      *
-     * Under the newest message that went unanswered, and only while there is a route to
-     * forget: a message that floods already found its own way, so nothing here would help.
-     * Under every unanswered message would be the same sentence three times over, and on a
-     * thread where the route is fine it would be a remedy for nothing.
+     * Under the newest message of yours that went out and never came back — either the
+     * waiting ran out or the app was closed while it was still in flight. Under every one of
+     * them would be the same sentence three times over; under the newest it reads as the
+     * thing to do next, which is what it is.
+     *
+     * One offer rather than two. Where the radio has a route, the useful thing is to throw
+     * that route away *and* send again, because the same way twice is the same silence
+     * twice; where it has none, the message already floods and there is nothing to forget.
+     * Two tappable lines under one message would be asking the reader to know which.
      */
-    val staleRoute = conversation.person.pathKnown
-    val offerUnder = remember(conversation.messages, staleRoute) {
-        if (!staleRoute) {
-            null
-        } else {
-            conversation.messages.lastOrNull {
-                it.mine && it.delivery == Delivery.UNANSWERED
-            }?.id
+    val unanswered = remember(conversation.messages) {
+        conversation.messages.lastOrNull {
+            it.mine &&
+                (it.delivery == Delivery.UNANSWERED || it.delivery == Delivery.UNRESOLVED)
         }
     }
 
@@ -123,13 +124,19 @@ fun ConversationScreen(
                     // counting items, not by measuring them.
                     Column {
                         MessageRow(message)
-                        if (message.id == offerUnder) {
+                        if (message.id == unanswered?.id) {
                             TextMMD(
-                                text = stringResource(R.string.message_forget_route),
+                                text = stringResource(
+                                    if (conversation.person.pathKnown) {
+                                        R.string.message_send_again_new_route
+                                    } else {
+                                        R.string.message_send_again
+                                    },
+                                ),
                                 style = MaterialTheme.typography.labelSmall,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable(onClick = onForgetRoute)
+                                    .clickable { onSendAgain(message) }
                                     .padding(horizontal = 12.dp, vertical = 6.dp),
                             )
                         }
@@ -232,6 +239,8 @@ private fun Message.note(): String? = when {
     mine && delivery == Delivery.REFUSED -> stringResource(R.string.message_refused)
     mine && delivery == Delivery.NO_ACK_EXPECTED ->
         stringResource(R.string.message_no_confirmation)
+    mine && delivery == Delivery.SENDING && attempt > 0 ->
+        pluralStringResource(R.plurals.message_sending_again, attempt, attempt + 1)
     mine && delivery == Delivery.SENDING -> stringResource(R.string.message_sending)
     mine && delivery == Delivery.UNRESOLVED -> stringResource(R.string.message_unresolved)
     mine && delivery == Delivery.AWAITING_ACK -> stringResource(R.string.message_waiting)

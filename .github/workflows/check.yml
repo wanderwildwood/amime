@@ -1,0 +1,61 @@
+# Tests and lint on the way in, rather than only on the way out.
+#
+# The release workflow runs both, but only on a tag — so until a release was cut nothing
+# checked a push at all, and a regression could sit on main until somebody happened to build
+# it locally. This is the same two commands, on every push and every pull request.
+#
+# It deliberately does not build a release APK: that needs the signing key, and a check that
+# needs a secret is a check that cannot run on a fork or a pull request from one.
+name: Check
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  # A newer push makes an older run pointless; nothing here publishes anything, so there is
+  # no reason to let one finish.
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Test
+        run: ./gradlew :app:testDebugUnitTest
+
+      # Lint runs against the release variant because that is the one whose warnings matter,
+      # and it aborts on an error — the same setting the local runs use.
+      - name: Lint
+        run: ./gradlew :app:lintRelease
+
+      # Worth having when something fails: the reports say which test and which line, and a
+      # log line saying "1 test failed" does not.
+      - name: Keep the reports from a failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            app/build/reports/
+            app/build/test-results/
+          retention-days: 7

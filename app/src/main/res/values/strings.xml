@@ -73,8 +73,15 @@
     <string name="message_sending">Sending</string>
     <string name="message_waiting">Waiting for a confirmation</string>
     <string name="message_unanswered">Sent, and no confirmation came in the time the radio expected</string>
-    <!-- Shown under a message nobody answered, where the radio has a route it could stop using. -->
-    <string name="message_forget_route">Tap to forget the route this took, and let the next message find its own way.</string>
+    <!-- Shown under the newest message of yours that went out and never came back. -->
+    <string name="message_send_again">Tap to send it again.</string>
+    <!-- The same, where the radio has a route that may be the reason nothing came back. -->
+    <string name="message_send_again_new_route">Tap to forget the route and send it again, so it finds its own way.</string>
+    <!-- %1$d is which try this is: the second, the third. -->
+    <plurals name="message_sending_again">
+        <item quantity="one">Sending, try %1$d</item>
+        <item quantity="other">Sending, try %1$d</item>
+    </plurals>
     <string name="message_unresolved">Sent before this app was last closed; no answer was ever seen</string>
     <string name="message_through_mesh">Through the mesh</string>
     <string name="message_weak_signal">Weak signal</string>
@@ -118,6 +125,7 @@
     <string name="problem_not_saving">Messages are not being saved on this phone.</string>
 
     <string name="ble_refused">The Bluetooth stack would not take another operation.</string>
+    <string name="ble_no_answer">The Bluetooth link stopped answering, so one frame was given up on.</string>
     <string name="ble_not_connected">Not connected to a radio.</string>
     <!-- %1$d is the size of the frame, %2$d what the link will carry. -->
     <plurals name="ble_frame_too_long">
