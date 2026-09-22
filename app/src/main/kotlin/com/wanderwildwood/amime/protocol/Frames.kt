@@ -26,7 +26,15 @@ sealed interface Frame {
         val buildDate: String,
         val manufacturer: String,
         val firmwareVersion: String,
-        val isRepeater: Boolean,
+        /**
+         * Whether this radio has been told to relay other people's packets.
+         *
+         * `_prefs.isRepeatEn()` in the firmware, and it is about a setting rather than about
+         * what the device is: a companion radio with client repeating turned on reports true
+         * here and is still a companion radio. Whether some *other* node is a repeater is a
+         * different question, answered by its advertised type on its contact row.
+         */
+        val repeatEnabled: Boolean,
         val pathHashMode: Int,
     ) : Frame
 
@@ -74,6 +82,44 @@ sealed interface Frame {
         override fun hashCode(): Int = 31 * name.hashCode() + publicKey.contentHashCode()
     }
 
+    /**
+     * The radio has learnt a way to reach a contact, or a better one.
+     *
+     * Carries the whole 32-byte key and nothing else — not the path itself. The contact's
+     * `lastmod` is bumped before this is sent, so asking for what has changed since the last
+     * sync brings back this contact with its new path on it.
+     */
+    data class PathUpdated(val publicKey: ByteArray) : Frame {
+        override fun equals(other: Any?): Boolean =
+            this === other || (other is PathUpdated && publicKey.contentEquals(other.publicKey))
+
+        override fun hashCode(): Int = publicKey.contentHashCode()
+    }
+
+    /**
+     * The radio threw a contact away to make room for a newer one.
+     *
+     * It keeps a fixed number and overwrites the oldest that is not a favourite, so this is
+     * the ordinary consequence of a busy mesh rather than a fault. The app is told which one
+     * because a list still showing them is a list offering to write to somebody the radio can
+     * no longer address.
+     */
+    data class ContactDeleted(val publicKey: ByteArray) : Frame {
+        override fun equals(other: Any?): Boolean =
+            this === other || (other is ContactDeleted && publicKey.contentEquals(other.publicKey))
+
+        override fun hashCode(): Int = publicKey.contentHashCode()
+    }
+
+    /**
+     * The radio's contact table is full.
+     *
+     * Carries nothing; it is a statement about the radio, not about a contact. What follows
+     * if nothing is done is that new people stop appearing, which from the outside is
+     * indistinguishable from an empty mesh.
+     */
+    data object ContactsFull : Frame
+
     /** The contact list is about to arrive. [count] contacts will follow. */
     data class ContactsStart(val count: Long) : Frame
 
@@ -91,6 +137,14 @@ sealed interface Frame {
         val publicKey: ByteArray,
         val type: Int,
         val flags: Int,
+        /**
+         * The `out_path_len` byte exactly as it arrived, sentinel and all.
+         *
+         * Kept raw because the byte carries three different things — whether a route is
+         * known at all, how many hops it is, and how wide each hop's hash is — and a reader
+         * that wants any one of them wants a different question asked of it.
+         */
+        val outPathLen: Int,
         val outPath: ByteArray,
         val name: String,
         val lastAdvert: Long,
@@ -102,10 +156,21 @@ sealed interface Frame {
         /** The six bytes this contact is addressed by. */
         val prefix: ByteArray get() = publicKey.copyOf(Sizes.PUB_KEY_PREFIX)
 
+        /**
+         * Whether the radio knows a way to reach this node.
+         *
+         * Not "is the path non-empty": a node one hop away has a path of **no** hops, which
+         * is a known route and an empty array, and a node nobody has a route to reports
+         * [OUT_PATH_UNKNOWN] — which, read as a length, is a full path rather than no path.
+         * Both of the two commonest cases come out backwards that way round.
+         */
+        val pathKnown: Boolean get() = outPathLen != OUT_PATH_UNKNOWN
+
         override fun equals(other: Any?): Boolean =
             this === other || (other is Contact && name == other.name &&
                 publicKey.contentEquals(other.publicKey) && type == other.type &&
-                flags == other.flags && outPath.contentEquals(other.outPath) &&
+                flags == other.flags && outPathLen == other.outPathLen &&
+                outPath.contentEquals(other.outPath) &&
                 lastAdvert == other.lastAdvert && latitude == other.latitude &&
                 longitude == other.longitude && lastMod == other.lastMod &&
                 isNewAdvert == other.isNewAdvert)

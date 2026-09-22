@@ -39,6 +39,22 @@ object Decoder {
                 if (frame.size >= CONTACT_FRAME_SIZE) contact(frame, isNewAdvert = true)
                 else short()
 
+            Push.CONTACTS_FULL -> Frame.ContactsFull
+
+            Push.CONTACT_DELETED ->
+                if (frame.size >= 1 + Sizes.PUB_KEY) {
+                    Frame.ContactDeleted(frame.copyOfRange(1, 1 + Sizes.PUB_KEY))
+                } else {
+                    short()
+                }
+
+            Push.PATH_UPDATED ->
+                if (frame.size >= 1 + Sizes.PUB_KEY) {
+                    Frame.PathUpdated(frame.copyOfRange(1, 1 + Sizes.PUB_KEY))
+                } else {
+                    short()
+                }
+
             Resp.CONTACT_MSG_RECV_V3 -> if (frame.size >= 16) messageV3(frame) else short()
             Resp.CONTACT_MSG_RECV -> if (frame.size >= 13) messageLegacy(frame) else short()
 
@@ -96,7 +112,7 @@ object Decoder {
         // Both appear only on later firmware. Absent is not false, but it is the safer read
         // of "this node does not tell us", and the length check above allows the frame to end
         // before either of them.
-        isRepeater = f.size > 80 && f.u8(80) == 1,
+        repeatEnabled = f.size > 80 && f.u8(80) == 1,
         pathHashMode = if (f.size > 81) f.u8(81) else 0,
     )
 
@@ -131,9 +147,10 @@ object Decoder {
             publicKey = f.copyOfRange(1, 1 + Sizes.PUB_KEY),
             type = f.u8(33),
             flags = f.u8(34),
-            // The path field is always 64 bytes on the wire; only the first pathLen of them
-            // mean anything, and a node reached by flood reports 0 rather than a short path.
-            outPath = f.copyOfRange(36, 36 + pathLen.coerceIn(0, Sizes.MAX_PATH)),
+            outPathLen = pathLen,
+            // The path field is always 64 bytes on the wire whatever the length says, and
+            // how many of them mean anything is not the byte itself — see [pathBytes].
+            outPath = f.copyOfRange(36, 36 + pathBytes(pathLen)),
             name = f.strz(100, Sizes.NAME),
             lastAdvert = f.u32(132),
             latitude = f.i32(136),

@@ -34,6 +34,12 @@ class Session(
         /** One contact, either from a list sync or an unprompted advert. */
         fun onContact(contact: Frame.Contact) {}
 
+        /** The radio dropped a contact to make room, and can no longer address them. */
+        fun onContactDeleted(prefix: List<Byte>) {}
+
+        /** The radio's contact table is full, so nobody new will appear until it is not. */
+        fun onContactsFull() {}
+
         /**
          * A contact sync finished. [since] is what to pass to the next [syncContacts] so the
          * radio only sends what changed.
@@ -112,6 +118,14 @@ class Session(
 
     private var draining = false
     private var mostRecentLastMod = 0L
+
+    /**
+     * What to ask for next time, so a sync fetches changes rather than the whole list.
+     *
+     * The radio's filter is strictly greater than this, so handing back what it reported
+     * cannot fetch the same contact twice.
+     */
+    private var syncedSince = 0L
     private val awaitingAcks = mutableSetOf<Long>()
 
     /**
@@ -128,6 +142,7 @@ class Session(
         self = null
         draining = false
         syncingContacts = false
+        syncedSince = 0L
         awaitingAcks.clear()
         Commands.handshake(appName).forEach(transport::send)
     }
@@ -217,8 +232,27 @@ class Session(
                 } else {
                     mostRecentLastMod
                 }
+                syncedSince = since
                 listener.onContactsSynced(since)
             }
+
+            /*
+             * A route appeared where there was none. The screen draws that difference — a
+             * solid border where the radio knows a way, a dotted one where it only floods —
+             * so without this the border is a picture of what was true at the moment of
+             * connecting and stays that way until the app is restarted.
+             *
+             * The contact's own `lastmod` was bumped before this frame was sent, so asking
+             * for what has changed brings back this one contact and little else.
+             */
+            is Frame.PathUpdated -> syncContacts(syncedSince)
+
+            is Frame.ContactDeleted ->
+                listener.onContactDeleted(
+                    frame.publicKey.copyOf(Sizes.PUB_KEY_PREFIX).toList(),
+                )
+
+            Frame.ContactsFull -> listener.onContactsFull()
 
             // A tickle with nothing in it. The queue is drained by asking repeatedly, and
             // one request is enough to start: each message answered asks for the next.

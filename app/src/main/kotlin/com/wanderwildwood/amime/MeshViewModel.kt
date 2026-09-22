@@ -73,6 +73,12 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
     })
 
     private val listener = object : Session.Listener by store {
+        override fun onContactsFull() {
+            // Nothing new will appear until something is removed, and an app that says
+            // nothing here looks exactly like an app on a mesh with nobody on it.
+            _problem.value = say(R.string.problem_contacts_full)
+        }
+
         override fun onProtocolProblem(problem: Session.Problem) {
             _problem.value = when (problem) {
                 Session.Problem.HANDSHAKE_SKIPPED -> say(R.string.problem_old_format)

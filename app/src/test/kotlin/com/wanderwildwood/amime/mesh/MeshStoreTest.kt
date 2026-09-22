@@ -2,9 +2,11 @@ package com.wanderwildwood.amime.mesh
 
 import com.wanderwildwood.amime.protocol.AdvType
 import com.wanderwildwood.amime.protocol.Frame
+import com.wanderwildwood.amime.protocol.OUT_PATH_UNKNOWN
 import com.wanderwildwood.amime.protocol.PATH_LEN_DIRECT
 import com.wanderwildwood.amime.protocol.Sizes
 import com.wanderwildwood.amime.protocol.TxtType
+import com.wanderwildwood.amime.protocol.pathBytes
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -53,14 +55,51 @@ class MeshStoreTest {
         assertEquals("111111111111", store.state.people.single().label)
     }
 
-    /** No route known means the radio floods to reach it, which the border shows as dotted. */
+    /**
+     * No route known means the radio floods to reach it, which the border shows as dotted.
+     *
+     * ⚠ This test used to pass `pathLen = 0` for "no path" and assert exactly the opposite of
+     * what the firmware means, which is how the bug it was written to catch survived: zero is
+     * a route of no hops — a neighbour — and a contact nobody has a route to carries
+     * [OUT_PATH_UNKNOWN]. Both of the common cases came out backwards.
+     */
     @Test
-    fun `a node with no path is provisional`() {
-        store.onContact(contact("far", key = 0x11, pathLen = 0))
+    fun `a node with no route is provisional and a neighbour is not`() {
+        store.onContact(contact("far", key = 0x11, pathLen = OUT_PATH_UNKNOWN))
         assertFalse(store.state.people.single().pathKnown)
+
+        // Zero hops: close enough to hear directly, and a settled route.
+        store.onContact(contact("far", key = 0x11, pathLen = 0))
+        assertTrue(store.state.people.single().pathKnown)
 
         store.onContact(contact("far", key = 0x11, pathLen = 2))
         assertTrue(store.state.people.single().pathKnown)
+    }
+
+    /**
+     * The radio keeps a fixed number of contacts and overwrites the oldest. A row left behind
+     * for somebody it has forgotten offers to write to an address it will answer with a flat
+     * not-found.
+     */
+    @Test
+    fun `a contact the radio dropped leaves the list but not the log`() {
+        store.onContact(contact("ridge", key = 0x11))
+        store.recordSent(ridge, "still here", 1)
+
+        store.onContactDeleted(ridge)
+
+        assertTrue(store.state.people.isEmpty())
+        assertEquals(1, store.state.conversations.getValue(ridge).size)
+    }
+
+    @Test
+    fun `dropping one contact leaves the others alone`() {
+        store.onContact(contact("ridge", key = 0x11))
+        store.onContact(contact("hollow", key = 0x22))
+
+        store.onContactDeleted(ridge)
+
+        assertEquals("hollow", store.state.people.single().label)
     }
 
     @Test
@@ -337,13 +376,16 @@ class MeshStoreTest {
     private fun contact(
         name: String,
         key: Int,
-        pathLen: Int = 0,
+        // What the firmware puts on a contact it has just created, so it is what a test that
+        // does not care about routes should be handed.
+        pathLen: Int = OUT_PATH_UNKNOWN,
         type: Int = AdvType.CHAT,
     ) = Frame.Contact(
         publicKey = ByteArray(Sizes.PUB_KEY) { key.toByte() },
         type = type,
         flags = 0,
-        outPath = ByteArray(pathLen),
+        outPathLen = pathLen,
+        outPath = ByteArray(pathBytes(pathLen)),
         name = name,
         lastAdvert = 1,
         latitude = 0,

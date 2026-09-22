@@ -96,7 +96,9 @@ class DecoderTest {
         assertEquals(123456L, info.blePin)
         assertEquals("Elecrow", info.manufacturer)
         assertEquals("v1.16.0", info.firmwareVersion)
-        assertFalse(info.isRepeater)
+        // The byte at 80 is a setting — whether this radio relays for others — and not a
+        // statement about what kind of device answered.
+        assertFalse(info.repeatEnabled)
         assertEquals(1, info.pathHashMode)
     }
 
@@ -192,6 +194,91 @@ class DecoderTest {
         assertEquals(3, contact.outPath.size)
         val flooded = Decoder.decode(contactFrame(Resp.CONTACT, "n", pathLen = 0)) as Frame.Contact
         assertEquals(0, flooded.outPath.size)
+    }
+
+    /**
+     * The whole of the difference between a node you can reach and one you cannot, and it is
+     * a sentinel rather than a length: `ContactInfo.h` sets `out_path_len` to 0xFF when a
+     * contact is created and leaves it there until a route is learnt. Read as a length it is
+     * 255, which is the fullest path there could be — the exact opposite of what it says.
+     */
+    @Test
+    fun `a contact with no route says so, rather than reading as the longest path there is`() {
+        val unknown =
+            Decoder.decode(contactFrame(Resp.CONTACT, "n", pathLen = OUT_PATH_UNKNOWN))
+                as Frame.Contact
+        assertFalse(unknown.pathKnown)
+        assertEquals(0, unknown.outPath.size)
+    }
+
+    /**
+     * And the other way round: a node one hop away has a route of no hops at all. An empty
+     * path is not the absence of one.
+     */
+    @Test
+    fun `a neighbour with a zero-hop route counts as known`() {
+        val direct = Decoder.decode(contactFrame(Resp.CONTACT, "n", pathLen = 0)) as Frame.Contact
+        assertTrue(direct.pathKnown)
+        assertEquals(0, direct.outPath.size)
+    }
+
+    @Test
+    fun `a path of three hops is known and three bytes long`() {
+        val hops = Decoder.decode(contactFrame(Resp.CONTACT, "n", pathLen = 3)) as Frame.Contact
+        assertTrue(hops.pathKnown)
+        assertEquals(3, hops.outPath.size)
+    }
+
+    /**
+     * `Packet::isValidPathLen`: the low six bits are the hop count and the top two say how
+     * many bytes each hop's hash takes. Three hops of two-byte hashes is six bytes of path
+     * behind a length byte that reads as 67.
+     */
+    @Test
+    fun `a wider hash is a longer path than the byte says`() {
+        val wide = Decoder.decode(
+            contactFrame(Resp.CONTACT, "n", pathLen = (1 shl 6) or 3),
+        ) as Frame.Contact
+        assertTrue(wide.pathKnown)
+        assertEquals(6, wide.outPath.size)
+    }
+
+    @Test
+    fun `a path length the firmware would reject keeps no path at all`() {
+        // 63 hops of four-byte hashes: the combination `isValidPathLen` reserves, and what
+        // the unknown sentinel decodes to.
+        assertEquals(0, pathBytes(0xFF))
+        // 63 hops of three-byte hashes is 189, past the 64 bytes the field holds.
+        assertEquals(0, pathBytes((2 shl 6) or 63))
+    }
+
+    /**
+     * A route appeared. The push carries the whole key and not the path, so the only thing
+     * to do with it is ask the radio what changed.
+     */
+    @Test
+    fun `a path update carries the whole key`() {
+        val key = ByteArray(Sizes.PUB_KEY) { 0x22 }
+        val updated = Decoder.decode(frame(Push.PATH_UPDATED, key)) as Frame.PathUpdated
+        assertArrayEquals(key, updated.publicKey)
+    }
+
+    @Test
+    fun `a path update short of a whole key is malformed`() {
+        val short = frame(Push.PATH_UPDATED, ByteArray(8))
+        assertEquals(Frame.Malformed(Push.PATH_UPDATED, 9), Decoder.decode(short))
+    }
+
+    @Test
+    fun `a full contact table is a statement with nothing in it`() {
+        assertEquals(Frame.ContactsFull, Decoder.decode(byteArrayOf(0x90.toByte())))
+    }
+
+    @Test
+    fun `a dropped contact names which one`() {
+        val key = ByteArray(Sizes.PUB_KEY) { 0x33 }
+        val dropped = Decoder.decode(frame(Push.CONTACT_DELETED, key)) as Frame.ContactDeleted
+        assertArrayEquals(key, dropped.publicKey)
     }
 
     /** Same 148 bytes, different meaning: someone new turned up by themselves. */

@@ -73,7 +73,7 @@
     <string name="console_logging_in">Logging in. The answer comes back over the air.</string>
     <string name="console_refused">Refused. It does not say whether that was the password or a full node.</string>
     <string name="console_administrator">Logged in as administrator.</string>
-    <string name="console_guest">Logged in as a guest, which can do very little.</string>
+    <string name="console_guest">Logged in as a guest. A repeater answers commands only from an administrator, so it will not answer these.</string>
     <!-- `help` is typed at the repeater exactly as it appears and is not translated. -->
     <string name="console_nothing_asked">Nothing asked yet. `help` lists what it will answer.</string>
     <string name="console_send">Send</string>
@@ -99,6 +99,7 @@
     <string name="problem_bluetooth_off">Bluetooth is off.</string>
     <string name="problem_scan_refused">Android would not start a scan. It limits how often an app may look; half a minute usually clears it.</string>
     <string name="problem_no_permission">Without permission to use Bluetooth this cannot look for a radio. Android\'s settings for this app is where it is given.</string>
+    <string name="problem_contacts_full">The radio is holding as many contacts as it can, so nobody new will appear until some are removed.</string>
     <string name="problem_no_key">This contact arrived without a full key, so there is no way to log in to it.</string>
     <string name="problem_not_saving">Messages are not being saved on this phone.</string>
 

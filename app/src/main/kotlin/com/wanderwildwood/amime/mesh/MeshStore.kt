@@ -98,8 +98,7 @@ class MeshStore(
             publicKey = contact.publicKey.toList(),
             name = contact.name,
             type = contact.type,
-            // An empty path means the radio has no route and reaches this node by flooding.
-            pathKnown = contact.outPath.isNotEmpty(),
+            pathKnown = contact.pathKnown,
             lastHeard = contact.lastAdvert,
         )
         update {
@@ -112,6 +111,18 @@ class MeshStore(
                 },
             )
         }
+    }
+
+    /**
+     * Take somebody off the list the radio has forgotten.
+     *
+     * Their conversation is left where it is rather than deleted: the messages were ours and
+     * reading them back does no harm, and the contact may advertise again within the hour.
+     * What goes is the row that would otherwise offer to write to somebody the radio would
+     * answer with a flat not-found.
+     */
+    override fun onContactDeleted(prefix: List<Byte>) = update {
+        copy(people = people.filterNot { it.prefix == prefix })
     }
 
     override fun onMessage(message: Frame.MessageReceived) {

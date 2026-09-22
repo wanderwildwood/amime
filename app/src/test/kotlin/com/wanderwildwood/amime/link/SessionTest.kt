@@ -24,6 +24,8 @@ class SessionTest {
     private class Heard : Session.Listener {
         val messages = mutableListOf<Frame.MessageReceived>()
         val contacts = mutableListOf<Frame.Contact>()
+        val deleted = mutableListOf<List<Byte>>()
+        var contactsFull = 0
         val problems = mutableListOf<Session.Problem>()
         val delivered = mutableListOf<Long>()
         val sent = mutableListOf<Pair<Frame.Sent, Boolean>>()
@@ -35,6 +37,8 @@ class SessionTest {
         override fun onDevice(info: Frame.DeviceInfo) { deviceInfo = info }
         override fun onReady(self: Frame.SelfInfo) { ready = self }
         override fun onContact(contact: Frame.Contact) { contacts += contact }
+        override fun onContactDeleted(prefix: List<Byte>) { deleted += prefix }
+        override fun onContactsFull() { contactsFull++ }
         override fun onContactsSynced(since: Long) { syncedSince = since }
         override fun onMessage(message: Frame.MessageReceived) { messages += message }
         override fun onSent(sent: Frame.Sent, awaitingAck: Boolean) { this.sent += sent to awaitingAck }
@@ -202,6 +206,59 @@ class SessionTest {
     }
 
     /**
+     * The border on the people list is drawn from whether the radio knows a route, and a
+     * route is learnt mid-session rather than at connection time. Without this the picture
+     * is of the moment the app connected and never changes.
+     */
+    @Test
+    fun `a learnt route fetches the contact that changed`() {
+        session.start()
+        session.syncContacts()
+        session.onFrame(contactsStart(1))
+        session.onFrame(contact("ridge-node", lastMod = 90))
+        session.onFrame(contactsEnd(90))
+        transport.clear()
+
+        session.onFrame(pathUpdated())
+
+        assertEquals(listOf(Cmd.GET_CONTACTS), transport.opcodes())
+        // Asked for what changed after the last sync, not for the whole list again. The
+        // radio's filter is strictly greater, so this cannot fetch the same contact twice.
+        assertEquals(90L, transport.sent.single().let { u32At(it, 1) })
+    }
+
+    @Test
+    fun `a route learnt while a sync is running does not interrupt it`() {
+        session.start()
+        session.syncContacts()
+        session.onFrame(contactsStart(1))
+        transport.clear()
+
+        session.onFrame(pathUpdated())
+
+        assertEquals(emptyList<Int>(), transport.opcodes())
+    }
+
+    /**
+     * The push carries the whole key; a contact is addressed by its first six bytes, and the
+     * six are what the rest of the app has to match against.
+     */
+    @Test
+    fun `a dropped contact is reported by the six bytes it is addressed by`() {
+        session.onFrame(bytes(Push.CONTACT_DELETED, ByteArray(Sizes.PUB_KEY) { 0x11 }))
+
+        assertEquals(listOf(List(Sizes.PUB_KEY_PREFIX) { 0x11.toByte() }), heard.deleted)
+    }
+
+    @Test
+    fun `a full contact table is passed on rather than counted as an unknown frame`() {
+        session.onFrame(byteArrayOf(Push.CONTACTS_FULL.toByte()))
+
+        assertEquals(1, heard.contactsFull)
+        assertEquals(emptyList<Session.Problem>(), heard.problems)
+    }
+
+    /**
      * The firmware holds one contacts iterator and answers a second request with a bad-state
      * error, so asking again mid-sync loses the answer rather than getting a fresher one.
      */
@@ -294,6 +351,12 @@ class SessionTest {
     private fun confirmed(ack: Long) = bytes(Push.SEND_CONFIRMED, u32(ack), u32(1200))
 
     private fun contactsStart(count: Long) = bytes(Resp.CONTACTS_START, u32(count))
+
+    /** The whole key and nothing else, which is all this push carries. */
+    private fun pathUpdated() = bytes(Push.PATH_UPDATED, ByteArray(Sizes.PUB_KEY) { 0x11 })
+
+    private fun u32At(frame: ByteArray, at: Int): Long =
+        (0..3).fold(0L) { acc, i -> acc or ((frame[at + i].toLong() and 0xFF) shl (i * 8)) }
 
     private fun contactsEnd(lastMod: Long) = bytes(Resp.END_OF_CONTACTS, u32(lastMod))
 

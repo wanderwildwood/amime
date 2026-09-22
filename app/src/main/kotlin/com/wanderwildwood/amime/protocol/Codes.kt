@@ -159,3 +159,34 @@ const val APP_PROTOCOL_VERSION = 13
 
 /** No path: the message came direct rather than by flood, so there is no route to record. */
 const val PATH_LEN_DIRECT = 0xFF
+
+/**
+ * What a contact's `out_path_len` says when the radio has no route to it.
+ *
+ * `OUT_PATH_UNKNOWN` in `ContactInfo.h`, and the value every contact starts at
+ * (`BaseChatMesh.cpp` sets it when a contact is created). It is the same 0xFF that means
+ * *came direct* in a received message, and it means close to the opposite here: there, the
+ * message did not have to be flooded; here, the radio has never learnt a way to reach them.
+ *
+ * ⚠ It is also not a length. A path length is an encoding — the low six bits are how many
+ * hops, the top two are how many bytes each hop's hash takes — so 0xFF decodes to 63 hops of
+ * four bytes, which is the one combination the firmware marks invalid, which is why it could
+ * be spared as the sentinel. See [pathBytes].
+ */
+const val OUT_PATH_UNKNOWN = 0xFF
+
+/**
+ * How many bytes of path a `path_len` byte actually describes.
+ *
+ * `Packet::isValidPathLen` in the firmware: `hash_count = len and 63`, and each hop's hash is
+ * `(len shr 6) + 1` bytes. Reading the byte as a count of bytes is right only while every
+ * hash is one byte, which is the ordinary case and therefore the one that hides the bug.
+ * Returns 0 where the firmware would call the encoding invalid.
+ */
+fun pathBytes(pathLen: Int): Int {
+    val hops = pathLen and 63
+    val hashSize = (pathLen shr 6) + 1
+    if (hashSize == 4) return 0 // reserved by the firmware, and what 0xFF decodes to
+    val bytes = hops * hashSize
+    return if (bytes <= Sizes.MAX_PATH) bytes else 0
+}

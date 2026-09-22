@@ -116,7 +116,12 @@ fun ConsoleScreen(
                         onSend(draft)
                         draft = ""
                     },
-                    enabled = admin.state == Admin.State.IN && draft.isNotBlank(),
+                    // A repeater obeys CLI commands from an administrator and from nobody
+                    // else — `client->isAdmin()` gates the whole branch in the firmware — and
+                    // what it does with anyone else's is nothing at all: no reply, no
+                    // refusal. A live button there is an invitation to type into silence.
+                    enabled = admin.state == Admin.State.IN && admin.isAdmin &&
+                        draft.isNotBlank(),
                 ) {
                     TextMMD(
                         text = stringResource(R.string.console_send),
