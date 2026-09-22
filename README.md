@@ -22,7 +22,7 @@ Not a fork. Written from scratch in Kotlin, on Mudita's own
 
 ## Where this is up to
 
-**Version 0.1.0.** 105 tests, green, and it has been talking to a radio for days rather than
+**Version 0.1.0.** 136 tests, green, and it has been talking to a radio for days rather than
 in theory. The commands and frames are written against `examples/companion_radio/MyMesh.cpp`
 in the MeshCore firmware rather than against the protocol documentation, for a reason given
 below. The session — handshake order, draining the message queue, matching an acknowledgement
@@ -39,9 +39,19 @@ has heard nothing since moving to 915 MHz, and a contact list with nothing in it
 conversation screen that has never run against a peer. A repeater is on its way, and the
 first real question it answers is that one.
 
-Still to come, and waiting on the same thing: sending, the four delivery states against a
-real acknowledgement, and administering a repeater over the air — which is built, and which
-has never been exercised against a repeater because there has not been one.
+Part of the reason nobody could have answered is worth stating plainly, because it was this
+app's fault rather than the mesh's: **a companion node advertises only when it is told to.**
+It has no advert timer — that is a repeater's job, and `simple_repeater` defaults to one
+every couple of minutes — so `createSelfAdvert` in the companion firmware is reachable from
+exactly two places: a button on the node's own screen, and `CMD_SEND_SELF_ADVERT` from
+whatever app is attached. This app had that command written and never called it, which makes
+a radio nobody can add as a contact and therefore nobody can write to. There is a press for
+it now, at the foot of the people list.
+
+Still to come, and waiting on the same thing: sending, the delivery states against a real
+acknowledgement, and administering a repeater over the air — which is built, and which has
+never been exercised against a repeater because there has not been one. Two of the four
+screenshots want the same.
 
 ## The documentation is wrong in at least one place that matters
 
