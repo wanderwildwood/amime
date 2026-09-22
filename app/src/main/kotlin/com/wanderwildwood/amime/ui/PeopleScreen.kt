@@ -107,7 +107,12 @@ fun PeopleScreen(
                             person = person,
                             unread = state.unreadCount(person.prefix),
                             onClick = {
-                                if (person.isRepeater) loginTo = person else onOpen(person)
+                                when {
+                                    person.isRepeater -> loginTo = person
+                                    // Nothing to say to a sensor; its row is a label.
+                                    person.isSensor -> Unit
+                                    else -> onOpen(person)
+                                }
                             },
                         )
                     }
@@ -244,10 +249,18 @@ private fun PersonRow(person: Person, unread: Int, onClick: () -> Unit) {
     ) {
         TextMMD(text = person.label, style = MaterialTheme.typography.bodyMedium)
         // A second line only where it carries something the label could not: what kind of
-        // node this is, and only when it is not the ordinary kind.
-        if (person.isRepeater) {
+        // node this is, and only when it is not the ordinary kind. A stranger's contact list
+        // on a community mesh is mostly repeaters and room servers, and a row that does not
+        // say which is a row that invites a conversation with a machine.
+        val kind = when {
+            person.isRepeater -> R.string.people_repeater
+            person.isRoom -> R.string.people_room
+            person.isSensor -> R.string.people_sensor
+            else -> null
+        }
+        if (kind != null) {
             TextMMD(
-                text = stringResource(R.string.people_repeater),
+                text = stringResource(kind),
                 style = MaterialTheme.typography.labelSmall,
             )
         } else if (unread > 0) {

@@ -261,10 +261,24 @@ class MeshStoreTest {
         assertEquals(before, changes)
     }
 
+    /**
+     * A contact list on a community mesh is mostly not people. Each kind wants something
+     * different done with it, and a row that does not say which invites a conversation with
+     * a machine that will never answer.
+     */
     @Test
-    fun `a repeater is distinguishable from a person`() {
+    fun `each kind of node is distinguishable from a person`() {
         store.onContact(contact("ridge", key = 0x11, type = AdvType.REPEATER))
-        assertTrue(store.state.people.single().isRepeater)
+        store.onContact(contact("the tavern", key = 0x22, type = AdvType.ROOM))
+        store.onContact(contact("rain gauge", key = 0x33, type = AdvType.SENSOR))
+        store.onContact(contact("somebody", key = 0x44, type = AdvType.CHAT))
+
+        val byName = store.state.people.associateBy { it.label }
+        assertTrue(byName.getValue("ridge").isRepeater)
+        assertTrue(byName.getValue("the tavern").isRoom)
+        assertTrue(byName.getValue("rain gauge").isSensor)
+        val person = byName.getValue("somebody")
+        assertFalse(person.isRepeater || person.isRoom || person.isSensor)
     }
 
     // ---- receiving ----

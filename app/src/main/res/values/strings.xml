@@ -25,6 +25,8 @@
 
     <!-- Everyone the radio knows -->
     <string name="people_repeater">Repeater</string>
+    <string name="people_room">Room</string>
+    <string name="people_sensor">Sensor</string>
     <!-- Only messages from the other end, and only ones not yet read. -->
     <plurals name="people_unread">
         <item quantity="one">%1$d unread</item>

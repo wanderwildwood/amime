@@ -41,6 +41,17 @@ data class Person(
         get() = name.ifBlank { prefix.joinToString("") { "%02x".format(it) } }
 
     val isRepeater: Boolean get() = type == AdvType.REPEATER
+
+    /** A room server: it holds a shared thread rather than a private one. */
+    val isRoom: Boolean get() = type == AdvType.ROOM
+
+    /**
+     * Something that reports readings rather than talks.
+     *
+     * There is nothing to say to one from here — it answers telemetry requests, which this
+     * app does not make — so its row says what it is and does not open a thread.
+     */
+    val isSensor: Boolean get() = type == AdvType.SENSOR
 }
 
 /** How far a message this app sent has actually got. */
