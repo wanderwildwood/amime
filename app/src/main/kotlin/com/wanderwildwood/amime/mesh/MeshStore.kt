@@ -69,8 +69,16 @@ class MeshStore(
         return id
     }
 
-    /** Forget everything from a connection that has gone. */
-    fun onDisconnected() = update { copy(ready = false, admin = null) }
+    /**
+     * Forget everything from a connection that has gone.
+     *
+     * Including what the antenna heard. The screen says "since connecting" and that has to
+     * stay true: a count carried across a reconnect is two measurements added together and
+     * labelled as one, which on a site survey is the number the whole exercise turns on.
+     */
+    fun onDisconnected() = update {
+        copy(ready = false, admin = null, heard = Heard())
+    }
 
     /** Begin administering a repeater. The answer comes back over the air, so this waits. */
     fun beginLogin(person: Person) = update {

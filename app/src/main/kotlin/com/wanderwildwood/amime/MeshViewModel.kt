@@ -22,6 +22,8 @@ import com.wanderwildwood.amime.mesh.MessageLog
 import com.wanderwildwood.amime.mesh.Person
 import com.wanderwildwood.amime.protocol.Sizes
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -39,6 +41,19 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _state = MutableStateFlow(MeshState())
     val state: StateFlow<MeshState> = _state.asStateFlow()
+
+    private val _connecting = MutableStateFlow<String?>(null)
+
+    /**
+     * The radio being connected to, from the tap until it answers.
+     *
+     * Bonding, a GATT connection, an MTU negotiation and a handshake sit between the two, and
+     * several seconds is a normal time for them on E Ink. Without this the tap changes
+     * nothing on the screen at all and the only thing left to do is tap it again.
+     */
+    val connecting: StateFlow<String?> = _connecting.asStateFlow()
+
+    private var handshakeWatch: Job? = null
 
     private val _pairing = MutableStateFlow(false)
 
@@ -70,6 +85,12 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
     private val store = MeshStore(onChange = {
         _state.value = it
         toSave.value = it.conversations
+        // The radio has said who it is, which is the end of connecting and the end of
+        // waiting to hear from it.
+        if (it.ready) {
+            handshakeWatch?.cancel()
+            _connecting.value = null
+        }
     })
 
     private val listener = object : Session.Listener by store {
@@ -97,6 +118,9 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
         listener = object : BleTransport.Listener {
             override fun onReady() {
                 _pairing.value = false
+                // The link is up; whether the radio will talk over it is the next question,
+                // and it is a different one.
+                watchForHandshake()
                 session.start()
                 session.syncContacts()
                 session.refreshBattery()
@@ -104,17 +128,23 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
 
             override fun onFrame(frame: ByteArray) = session.onFrame(frame)
 
-            override fun onDisconnected() = store.onDisconnected()
+            override fun onDisconnected() {
+                handshakeWatch?.cancel()
+                _connecting.value = null
+                store.onDisconnected()
+            }
 
             override fun onPairingRequired() {
                 _pairing.value = true
             }
 
             override fun onError(message: String) {
-                // Whatever it was, the phone is not in the middle of pairing any more.
-                // Leaving that line up would have the screen explaining a PIN nobody is
-                // being asked for.
+                // Whatever it was, the phone is not in the middle of pairing any more, and
+                // it is not in the middle of connecting either. Leaving either line up would
+                // have the screen describing something that has already stopped happening.
                 _pairing.value = false
+                _connecting.value = null
+                handshakeWatch?.cancel()
                 _problem.value = message
             }
         },
@@ -246,9 +276,40 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
         _scanning.value = false
     }
 
-    fun connect(device: BluetoothDevice) {
+    /**
+     * Connect to one radio.
+     *
+     * Takes the [Radio] rather than its device because the name has already been read once,
+     * while the permission was being held for the scan that found it; reading it again here
+     * is a second call that can be refused for no gain.
+     */
+    fun connect(radio: Radio) {
         stopScanning()
-        transport.connect(device)
+        _problem.value = null
+        _connecting.value = radio.name
+        transport.connect(radio.device)
+    }
+
+    /**
+     * Give up waiting for the radio to say who it is.
+     *
+     * There is a state the firmware allows that looks exactly like a working connection from
+     * here: an app that has not been authenticated gets a link that accepts every command,
+     * processes it, and drops every reply — `deviceConnected` is set in one place and
+     * `writeFrame` refuses while it is false. The GATT side is healthy, the handshake goes
+     * out, and nothing ever comes back. Without this the screen would sit on the radio list
+     * forever with no account of itself.
+     */
+    private fun watchForHandshake() {
+        handshakeWatch?.cancel()
+        handshakeWatch = viewModelScope.launch {
+            delay(HANDSHAKE_PATIENCE_MS)
+            if (!state.value.ready) {
+                _connecting.value = null
+                _problem.value = say(R.string.problem_no_answer)
+                transport.disconnect()
+            }
+        }
     }
 
     /**
@@ -293,6 +354,7 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     override fun onCleared() {
+        handshakeWatch?.cancel()
         scanner.stop()
         transport.disconnect()
         // The writer runs in this scope and the scope is about to be cancelled, so anything
@@ -305,5 +367,13 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
     private companion object {
         /** What the firmware puts in front of a node's name when it advertises. */
         const val MESHCORE_PREFIX = "MeshCore-"
+
+        /**
+         * How long to wait for the radio to answer the handshake.
+         *
+         * Generous on purpose: bonding, an MTU negotiation and service discovery all happen
+         * first, and a phone that has just been woken is slower than one in hand.
+         */
+        const val HANDSHAKE_PATIENCE_MS = 12_000L
     }
 }

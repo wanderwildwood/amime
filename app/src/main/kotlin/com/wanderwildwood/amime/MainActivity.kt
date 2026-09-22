@@ -44,6 +44,7 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
     val scanning by viewModel.scanning.collectAsStateWithLifecycle()
     val problem by viewModel.problem.collectAsStateWithLifecycle()
     val pairing by viewModel.pairing.collectAsStateWithLifecycle()
+    val connecting by viewModel.connecting.collectAsStateWithLifecycle()
 
     val ask = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -76,8 +77,9 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
             scanning = scanning,
             problem = problem,
             pairing = pairing,
+            connecting = connecting,
             onScan = viewModel::findRadios,
-            onConnect = { viewModel.connect(it.device) },
+            onConnect = viewModel::connect,
         )
     } else if (person != null) {
         ConversationScreen(

@@ -1,6 +1,7 @@
 package com.wanderwildwood.amime.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +13,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,6 +53,14 @@ fun ConsoleScreen(
     // Leaving by the phone's own way out, which otherwise leaves the app rather than the
     // console — and leaving properly means logging out, which is what the close does.
     BackHandler(onBack = onClose)
+
+    // A console reads from the bottom: the answer to what was just asked is the last line,
+    // and a round trip over the mesh is slow enough that watching for it is the whole
+    // activity. Instant rather than animated, as everywhere on this panel.
+    val listState = rememberLazyListState()
+    LaunchedEffect(admin.lines.size) {
+        if (admin.lines.isNotEmpty()) listState.scrollToItem(admin.lines.lastIndex)
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surface,
@@ -96,7 +106,10 @@ fun ConsoleScreen(
                     )
                 }
             } else {
-                LazyColumnMMD(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                LazyColumnMMD(
+                    state = listState,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                ) {
                     items(admin.lines.size) { index -> Line(admin.lines[index]) }
                 }
             }

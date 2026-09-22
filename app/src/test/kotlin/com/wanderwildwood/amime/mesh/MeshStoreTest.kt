@@ -102,6 +102,31 @@ class MeshStoreTest {
         assertEquals("hollow", store.state.people.single().label)
     }
 
+    /**
+     * The empty screen says "since connecting", and a survey is the one place that number is
+     * read as a measurement rather than as decoration.
+     */
+    @Test
+    fun `what the antenna heard does not carry across a reconnect`() {
+        store.onPacketHeard(packetHeard(snr = -6f, rssi = -90))
+        store.onPacketHeard(packetHeard(snr = -3f, rssi = -80))
+        assertEquals(2, store.state.heard.packets)
+
+        store.onDisconnected()
+
+        assertEquals(0, store.state.heard.packets)
+        assertNull(store.state.heard.bestSnr)
+    }
+
+    @Test
+    fun `the strongest reading is kept while one connection lasts`() {
+        store.onPacketHeard(packetHeard(snr = -6f, rssi = -90))
+        store.onPacketHeard(packetHeard(snr = -12f, rssi = -100))
+
+        assertEquals(2, store.state.heard.packets)
+        assertEquals(-6f, store.state.heard.bestSnr!!, 0.01f)
+    }
+
     @Test
     fun `a repeater is distinguishable from a person`() {
         store.onContact(contact("ridge", key = 0x11, type = AdvType.REPEATER))
@@ -401,6 +426,12 @@ class MeshStoreTest {
         txtType = TxtType.PLAIN,
         senderTimestamp = 1,
         text = text,
+    )
+
+    private fun packetHeard(snr: Float, rssi: Int) = Frame.PacketHeard(
+        snr = snr,
+        rssi = rssi,
+        bytes = ByteArray(0),
     )
 
     private fun sent(ack: Long) = Frame.Sent(

@@ -39,6 +39,7 @@ fun RadiosScreen(
     scanning: Boolean,
     problem: String?,
     pairing: Boolean,
+    connecting: String?,
     onScan: () -> Unit,
     onConnect: (MeshViewModel.Radio) -> Unit,
 ) {
@@ -74,6 +75,16 @@ fun RadiosScreen(
             // and on a node with a screen it is a fresh six digits after every power cut.
             // Without this line the obvious thing to try is the phone's own PIN, and the
             // obvious conclusion when that fails is that the app does not work.
+            // Between the tap and the radio saying who it is there is a bond, a GATT
+            // connection, an MTU negotiation and a handshake, and on this screen none of
+            // them used to show. A tap that changes nothing invites a second tap.
+            connecting?.let {
+                TextMMD(
+                    text = stringResource(R.string.radios_connecting, it),
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                )
+            }
             if (pairing) {
                 TextMMD(
                     text = stringResource(R.string.radios_pairing, NordicUart.DEFAULT_PIN),
@@ -103,14 +114,21 @@ fun RadiosScreen(
             } else {
                 LazyColumnMMD(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     items(radios.size) { index ->
-                        RadioRow(radios[index], onClick = { onConnect(radios[index]) })
+                        RadioRow(
+                            radio = radios[index],
+                            // One connection at a time. A second radio tapped while the
+                            // first is still negotiating leaves two GATT connections racing
+                            // for one session.
+                            enabled = connecting == null,
+                            onClick = { onConnect(radios[index]) },
+                        )
                     }
                 }
             }
 
             OutlinedButtonMMD(
                 onClick = onScan,
-                enabled = !scanning,
+                enabled = !scanning && connecting == null,
                 modifier = Modifier.fillMaxWidth().padding(12.dp),
             ) {
                 TextMMD(
@@ -127,14 +145,14 @@ fun RadiosScreen(
 }
 
 @Composable
-private fun RadioRow(radio: MeshViewModel.Radio, onClick: () -> Unit) {
+private fun RadioRow(radio: MeshViewModel.Radio, enabled: Boolean, onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             // Solid for a radio this phone is already paired with; dotted for one it has only
             // just heard, which will want a PIN before it will say anything.
             .stateBorder(settled = radio.bonded)
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
         TextMMD(text = radio.name, style = MaterialTheme.typography.bodyMedium)

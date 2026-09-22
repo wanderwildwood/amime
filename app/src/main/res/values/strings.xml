@@ -19,6 +19,8 @@
     <!-- The signal strength of a radio that has not been connected to yet, in dBm. -->
     <string name="radios_signal">%1$d dBm</string>
     <!-- %1$d is the six-digit PIN the firmware ships with. -->
+    <!-- %1$s is the radio's name. -->
+    <string name="radios_connecting">Connecting to %1$s.</string>
     <string name="radios_pairing">Pairing. The PIN is the radio\'s own: a node with a screen shows it, and one without has %1$d until it is changed.</string>
 
     <!-- Everyone the radio knows -->
@@ -96,6 +98,7 @@
     <string name="problem_tap_to_clear">%1$s — tap to clear</string>
     <string name="problem_old_format">The radio is answering in an older format; messages may be unreadable.</string>
     <string name="problem_truncated">Part of a message was lost between the radio and the phone.</string>
+    <string name="problem_no_answer">The radio connected but never said who it is. Turning it off and on again is usually what this wants.</string>
     <string name="problem_bluetooth_off">Bluetooth is off.</string>
     <string name="problem_scan_refused">Android would not start a scan. It limits how often an app may look; half a minute usually clears it.</string>
     <string name="problem_no_permission">Without permission to use Bluetooth this cannot look for a radio. Android\'s settings for this app is where it is given.</string>

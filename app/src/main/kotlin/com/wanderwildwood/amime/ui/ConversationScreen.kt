@@ -1,6 +1,7 @@
 package com.wanderwildwood.amime.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,6 +13,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,6 +64,24 @@ fun ConversationScreen(
     val length = remember(draft) { draft.toByteArray(Charsets.UTF_8).size }
     val overBy = length - Sizes.MAX_TEXT
 
+    /*
+     * A thread opens at its newest message rather than at its oldest.
+     *
+     * The house rule says a thread of bubbles should not use MMD's list, because it pages by
+     * four items and an item whose height is unknown — a photograph, a message longer than
+     * the screen — is then skipped rather than paged through. Neither can happen here: there
+     * are no pictures, and the radio will not carry more than 160 bytes, which is three or
+     * four lines. Every item is smaller than a page, so paging by items is paging by pages.
+     */
+    val listState = rememberLazyListState()
+    LaunchedEffect(conversation.messages.size) {
+        if (conversation.messages.isNotEmpty()) {
+            // Instant, not animated: the panel redraws in full and a smooth scroll on E Ink
+            // is a smear with a battery cost.
+            listState.scrollToItem(conversation.messages.lastIndex)
+        }
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
@@ -74,7 +94,7 @@ fun ConversationScreen(
         },
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-            LazyColumnMMD(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            LazyColumnMMD(state = listState, modifier = Modifier.weight(1f).fillMaxWidth()) {
                 items(conversation.messages.size) { index ->
                     MessageRow(conversation.messages[index])
                 }
