@@ -155,6 +155,10 @@ while nothing was listening, and saying it is still pending would be a claim nob
 Nothing else is stored. Contacts come off the radio at every connection, which is where they
 live; what the antenna heard is about this session and does not outlast it.
 
+`PRIVACY.md` sets that out at length, along with the part that is not this app's doing: a
+message's body is encrypted to the contact it is for, who it is between is not, and an advert
+is not encrypted at all — which is exactly what makes a radio addressable.
+
 ## Building
 
 ```
