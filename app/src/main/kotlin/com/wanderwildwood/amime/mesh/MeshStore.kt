@@ -12,6 +12,13 @@ import com.wanderwildwood.amime.protocol.Frame
  */
 class MeshStore(
     private val onChange: (MeshState) -> Unit = {},
+    /**
+     * The clock, injected so that a test can hold it still.
+     *
+     * The only thing this class times is how long to go on calling a message unanswered,
+     * which is the radio's estimate rather than a figure of our own.
+     */
+    private val now: () -> Long = { System.currentTimeMillis() },
 ) : Session.Listener {
 
     var state: MeshState = MeshState()
@@ -156,12 +163,51 @@ class MeshStore(
         setDelivery(
             target,
             if (awaitingAck) Delivery.AWAITING_ACK else Delivery.NO_ACK_EXPECTED,
+            // The radio works this out from the airtime, the spreading factor and the length
+            // of the path; none of which is known here, so it is not second-guessed.
+            awaitingUntil = if (awaitingAck) now() + sent.estimatedTimeoutMs else null,
         )
     }
 
+    /**
+     * An acknowledgement, however late.
+     *
+     * A message the clock already gave up on is still settled by one arriving afterwards:
+     * the expiry ends the waiting, not the possibility, and the hash stays in [awaiting] for
+     * exactly this reason.
+     */
     override fun onDelivered(ackHash: Long, roundTripMs: Long) {
         val target = awaiting.remove(ackHash) ?: return
         setDelivery(target, Delivery.ACKNOWLEDGED)
+    }
+
+    /** Whether anything is still inside the window the radio gave it. */
+    fun hasAwaitingAcks(): Boolean = state.conversations.values.any { thread ->
+        thread.any { it.delivery == Delivery.AWAITING_ACK }
+    }
+
+    /**
+     * Stop waiting on anything whose window has closed.
+     *
+     * Silent when nothing has expired — on a panel that repaints in full, a state object
+     * handed out every few seconds with nothing changed in it is a screenful of flicker for
+     * no news.
+     */
+    fun expireAwaitingAcks() {
+        val deadline = now()
+        val expired = state.conversations.mapValues { (_, thread) ->
+            thread.map {
+                if (it.delivery == Delivery.AWAITING_ACK &&
+                    it.awaitingUntil != null &&
+                    it.awaitingUntil <= deadline
+                ) {
+                    it.copy(delivery = Delivery.UNANSWERED, awaitingUntil = null)
+                } else {
+                    it
+                }
+            }
+        }
+        if (expired != state.conversations) update { copy(conversations = expired) }
     }
 
     override fun onFailed(code: Int) {
@@ -199,13 +245,23 @@ class MeshStore(
 
     // ---- plumbing ----
 
-    private fun setDelivery(target: Pair<List<Byte>, Long>, delivery: Delivery) {
+    private fun setDelivery(
+        target: Pair<List<Byte>, Long>,
+        delivery: Delivery,
+        awaitingUntil: Long? = null,
+    ) {
         val (prefix, id) = target
         update {
             val thread = conversations[prefix] ?: return@update this
             copy(
                 conversations = conversations + (
-                    prefix to thread.map { if (it.id == id) it.copy(delivery = delivery) else it }
+                    prefix to thread.map {
+                        if (it.id == id) {
+                            it.copy(delivery = delivery, awaitingUntil = awaitingUntil)
+                        } else {
+                            it
+                        }
+                    }
                     ),
             )
         }

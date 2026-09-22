@@ -177,6 +177,8 @@ private val Delivery.isSettled: Boolean
     get() = this == Delivery.ACKNOWLEDGED ||
         this == Delivery.NO_ACK_EXPECTED ||
         this == Delivery.REFUSED ||
+        // The waiting is over, which is knowledge, even though what happened is not.
+        this == Delivery.UNANSWERED ||
         // Not settled as in arrived — settled as in nothing further is coming. A dotted
         // border here would say the app was still waiting for something, and it is not.
         this == Delivery.UNRESOLVED
@@ -196,6 +198,7 @@ private fun Message.note(): String? = when {
     mine && delivery == Delivery.SENDING -> stringResource(R.string.message_sending)
     mine && delivery == Delivery.UNRESOLVED -> stringResource(R.string.message_unresolved)
     mine && delivery == Delivery.AWAITING_ACK -> stringResource(R.string.message_waiting)
+    mine && delivery == Delivery.UNANSWERED -> stringResource(R.string.message_unanswered)
     // Only worth saying where it is not the ordinary case: a message that came through
     // repeaters travelled further than one that did not, and the signal is the reason a
     // reply might not make it back.

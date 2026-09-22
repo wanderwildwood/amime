@@ -54,6 +54,7 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
     val connecting: StateFlow<String?> = _connecting.asStateFlow()
 
     private var handshakeWatch: Job? = null
+    private var ackWatch: Job? = null
 
     private val _pairing = MutableStateFlow(false)
 
@@ -91,7 +92,28 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
             handshakeWatch?.cancel()
             _connecting.value = null
         }
+        watchAcks()
     })
+
+    /**
+     * Keep time on messages waiting for an acknowledgement.
+     *
+     * Somebody has to. The firmware notices its own send timeout and does nothing with it —
+     * `onSendTimeout()` is an empty function in the companion build — so a message with no
+     * answer would otherwise say it was waiting for one until the app was closed.
+     *
+     * One loop for all of them, and only while there is something to wait on: a repaint
+     * every few seconds with nothing changed in it is a screenful of flicker on E Ink.
+     */
+    private fun watchAcks() {
+        if (ackWatch?.isActive == true || !store.hasAwaitingAcks()) return
+        ackWatch = viewModelScope.launch {
+            while (store.hasAwaitingAcks()) {
+                delay(ACK_CHECK_MS)
+                store.expireAwaitingAcks()
+            }
+        }
+    }
 
     private val listener = object : Session.Listener by store {
         override fun onContactsFull() {
@@ -358,6 +380,7 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         handshakeWatch?.cancel()
+        ackWatch?.cancel()
         scanner.stop()
         transport.disconnect()
         // The writer runs in this scope and the scope is about to be cancelled, so anything
@@ -378,5 +401,14 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
          * first, and a phone that has just been woken is slower than one in hand.
          */
         const val HANDSHAKE_PATIENCE_MS = 12_000L
+
+        /**
+         * How often to look at what is still waiting.
+         *
+         * Coarse on purpose. The radio's estimates are in the tens of seconds for a direct
+         * path and minutes for a flood, so a finer check would buy nothing and cost a
+         * repaint.
+         */
+        const val ACK_CHECK_MS = 5_000L
     }
 }

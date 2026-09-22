@@ -67,6 +67,17 @@ enum class Delivery {
     REFUSED,
 
     /**
+     * The radio's own estimate of how long an acknowledgement could take has passed.
+     *
+     * Not a failure: an acknowledgement that arrives late is still accepted and still moves
+     * this to [ACKNOWLEDGED]. It is the end of *waiting*, which is a different thing, and it
+     * has to end somewhere — the firmware notices its own timeout and tells the app nothing
+     * (`onSendTimeout()` is an empty function), so if this app does not keep the time then
+     * nobody does and the row waits for ever.
+     */
+    UNANSWERED,
+
+    /**
      * Read back from the log still in flight, which means it never landed anywhere.
      *
      * The answer it was waiting for travelled while this app was not running, and nothing
@@ -88,6 +99,14 @@ data class Message(
     val snr: Float? = null,
     /** Whether a received message arrived direct rather than through repeaters. */
     val direct: Boolean? = null,
+    /**
+     * When the radio's estimate of how long an acknowledgement could take runs out.
+     *
+     * Set only while [Delivery.AWAITING_ACK], from the estimate the radio hands back with
+     * the send — it knows the airtime, the spreading factor and how many hops the path is,
+     * and this app knows none of those.
+     */
+    val awaitingUntil: Long? = null,
 )
 
 data class Conversation(

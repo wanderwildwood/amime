@@ -21,9 +21,12 @@ class MeshStoreTest {
     private val ridge = List<Byte>(6) { 0x11 }
     private val hollow = List<Byte>(6) { 0x22 }
 
+    private var clock = 1_000L
+
     @Before
     fun setUp() {
-        store = MeshStore()
+        clock = 1_000L
+        store = MeshStore(now = { clock })
     }
 
     // ---- people ----
@@ -125,6 +128,74 @@ class MeshStoreTest {
 
         assertEquals(2, store.state.heard.packets)
         assertEquals(-6f, store.state.heard.bestSnr!!, 0.01f)
+    }
+
+    // ---- waiting for an acknowledgement, and when to stop ----
+
+    /**
+     * The firmware sees its own send time out and tells the app nothing —
+     * `MyMesh::onSendTimeout()` is an empty function — so if this does not keep the time, a
+     * message waits for an answer for as long as the app is open.
+     */
+    @Test
+    fun `waiting ends when the radio said it would`() {
+        store.onContact(contact("ridge", key = 0x11))
+        store.recordSent(ridge, "are you there", 1)
+        store.onSent(sentAwaiting(ack = 0x99, estimatedTimeoutMs = 30_000), awaitingAck = true)
+        assertEquals(Delivery.AWAITING_ACK, only(ridge).delivery)
+
+        clock += 29_000
+        store.expireAwaitingAcks()
+        assertEquals(Delivery.AWAITING_ACK, only(ridge).delivery)
+
+        clock += 2_000
+        store.expireAwaitingAcks()
+        assertEquals(Delivery.UNANSWERED, only(ridge).delivery)
+    }
+
+    /**
+     * Giving up on an answer is not the same as deciding it will never come. The hash stays
+     * on the books so a late one still settles the message properly.
+     */
+    @Test
+    fun `an acknowledgement after the window still counts`() {
+        store.onContact(contact("ridge", key = 0x11))
+        store.recordSent(ridge, "are you there", 1)
+        store.onSent(sentAwaiting(ack = 0x99, estimatedTimeoutMs = 30_000), awaitingAck = true)
+        clock += 31_000
+        store.expireAwaitingAcks()
+        assertEquals(Delivery.UNANSWERED, only(ridge).delivery)
+
+        store.onDelivered(0x99, roundTripMs = 45_000)
+
+        assertEquals(Delivery.ACKNOWLEDGED, only(ridge).delivery)
+    }
+
+    /** A repaint every few seconds with nothing changed in it is flicker for no news. */
+    @Test
+    fun `nothing expiring changes nothing`() {
+        var changes = 0
+        val quiet = MeshStore(onChange = { changes++ }, now = { clock })
+        quiet.onContact(contact("ridge", key = 0x11))
+        quiet.recordSent(ridge, "hello", 1)
+        quiet.onSent(sentAwaiting(ack = 0x99, estimatedTimeoutMs = 30_000), awaitingAck = true)
+        val before = changes
+
+        quiet.expireAwaitingAcks()
+        quiet.expireAwaitingAcks()
+
+        assertEquals(before, changes)
+    }
+
+    @Test
+    fun `a message the radio expects no answer for never starts waiting`() {
+        store.onContact(contact("ridge", key = 0x11))
+        store.recordSent(ridge, "help", 1)
+        store.onSent(sentAwaiting(ack = 0, estimatedTimeoutMs = 30_000), awaitingAck = false)
+
+        assertEquals(Delivery.NO_ACK_EXPECTED, only(ridge).delivery)
+        assertNull(only(ridge).awaitingUntil)
+        assertFalse(store.hasAwaitingAcks())
     }
 
     @Test
@@ -432,6 +503,12 @@ class MeshStoreTest {
         snr = snr,
         rssi = rssi,
         bytes = ByteArray(0),
+    )
+
+    private fun sentAwaiting(ack: Long, estimatedTimeoutMs: Long) = Frame.Sent(
+        byFlood = false,
+        expectedAck = ack,
+        estimatedTimeoutMs = estimatedTimeoutMs,
     )
 
     private fun sent(ack: Long) = Frame.Sent(

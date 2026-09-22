@@ -81,7 +81,7 @@ whose only job is to fail if the message opcode is ever "corrected" back.
   MHz by 1000 for one and a float of kHz by 1000 for the other, so `SELF_INFO` carries
   frequency in kHz and bandwidth in Hz.
 
-## Four states for a sent message, and three of them are not failures
+## How far a message got, and the four ways that stops being a question
 
 The thing this app has to say that an ordinary messaging app does not is how far a message
 actually got, because on a mesh that is a real question with a long answer.
@@ -91,6 +91,18 @@ accepted and waiting on an acknowledgement — and **solid** once it is settled.
 the outcome is *known*, not that it was good: a refusal is solid, and so is the radio
 answering that no acknowledgement is coming at all. Leaving that last one dotted would be the
 screen claiming something is still in flight when the radio has already said it is not.
+
+Waiting has to end somewhere, and nothing outside this app ends it. The radio hands back its
+own estimate of how long an acknowledgement could take — it knows the airtime, the spreading
+factor and the length of the path, and this app knows none of those — and then, when that
+estimate runs out, does nothing with it: `onSendTimeout()` in the companion firmware is an
+empty function. So the app keeps the time itself, and a message nobody answered stops saying
+it is waiting for an answer. That is not the same as saying it failed, and an acknowledgement
+that turns up late is still accepted and still settles it.
+
+The two remaining states are about this app rather than the mesh: a message that was still in
+flight when Android reclaimed the process comes back saying so, because the answer it wanted
+went past while nothing was listening.
 
 The same border does the same job in the people list: solid where the radio knows a route to
 a node, dotted where it has only ever reached it by flooding.
