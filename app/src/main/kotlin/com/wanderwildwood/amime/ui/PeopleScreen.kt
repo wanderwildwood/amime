@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -207,7 +208,9 @@ private fun LoginDialog(person: Person, onDismiss: () -> Unit, onLogIn: (String)
             Spacer(Modifier.width(8.dp))
             OutlinedButtonMMD(
                 onClick = { shown = !shown },
-                modifier = Modifier.height(48.dp),
+                // Wide enough for either word, so the field beside it does not shift, and
+                // the panel redraw, every time it is pressed.
+                modifier = Modifier.widthIn(min = 72.dp).height(48.dp),
             ) {
                 TextMMD(
                     text = stringResource(if (shown) R.string.login_hide else R.string.login_show),
