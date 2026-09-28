@@ -55,6 +55,8 @@
     <string name="login_whose_password">The node\'s own password, not this phone\'s.</string>
     <string name="login_cancel">Cancel</string>
     <string name="login_in">Log in</string>
+    <string name="login_show">Show</string>
+    <string name="login_hide">Hide</string>
 
     <!-- A thread -->
     <string name="conversation_back">Back</string>

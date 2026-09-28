@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -22,6 +24,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.mudita.mmd.components.buttons.OutlinedButtonMMD
 import com.mudita.mmd.components.lazy.LazyColumnMMD
@@ -166,13 +171,15 @@ fun PeopleScreen(
  * thing worth saying here: an untouched repeater still has the firmware's, and somebody who
  * assumes it is theirs will type the wrong thing three times before doubting the app.
  *
- * Not masked. A repeater's password is shared by everyone who looks after it rather than
- * personal, and on a panel that redraws this slowly a row of dots is how a typo survives to
- * become a refused login with nothing to show for it.
+ * Masked, with Show beside it. Dots alone would let a typo on a panel this slow survive to
+ * become a refused login with nothing to check; plain text alone puts the one secret that can
+ * reconfigure a node on a pole in front of anyone looking over a shoulder. The word is a
+ * word rather than an eye because the house has no icons on rows.
  */
 @Composable
 private fun LoginDialog(person: Person, onDismiss: () -> Unit, onLogIn: (String) -> Unit) {
     var password by remember { mutableStateOf("") }
+    var shown by remember { mutableStateOf(false) }
 
     EInkDialog(onDismiss = onDismiss) {
         TextMMD(
@@ -185,11 +192,29 @@ private fun LoginDialog(person: Person, onDismiss: () -> Unit, onLogIn: (String)
             style = MaterialTheme.typography.labelSmall,
         )
         Spacer(Modifier.height(14.dp))
-        TextFieldMMD(
-            value = password,
-            onValueChange = { password = it },
-            modifier = Modifier.fillMaxWidth(),
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextFieldMMD(
+                value = password,
+                onValueChange = { password = it },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                visualTransformation = if (shown) VisualTransformation.None else PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    autoCorrectEnabled = false,
+                ),
+            )
+            Spacer(Modifier.width(8.dp))
+            OutlinedButtonMMD(
+                onClick = { shown = !shown },
+                modifier = Modifier.height(48.dp),
+            ) {
+                TextMMD(
+                    text = stringResource(if (shown) R.string.login_hide else R.string.login_show),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
         Spacer(Modifier.height(18.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButtonMMD(
