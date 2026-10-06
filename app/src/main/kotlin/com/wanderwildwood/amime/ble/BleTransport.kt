@@ -75,6 +75,9 @@ class BleTransport(
     }
 
     private var gatt: BluetoothGatt? = null
+
+    /** Whether this link ever came up, so a refusal can be told from a disconnect. */
+    private var linked = false
     private var rx: BluetoothGattCharacteristic? = null
     private val watchdog = Handler(Looper.getMainLooper())
 
@@ -200,6 +203,7 @@ class BleTransport(
     private fun openGatt(device: BluetoothDevice) {
         // TRANSPORT_LE is not the default for a dual-mode device, and letting the stack
         // choose sends the connection over BR/EDR, where none of this exists.
+        linked = false
         gatt = device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
     }
 
@@ -209,6 +213,7 @@ class BleTransport(
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
                     log { "connected status=$status" }
+                    linked = true
                     // MTU before service discovery: a larger MTU changes nothing about the
                     // services, and asking afterwards means the first frames go out at 20
                     // bytes and come back cut off.
@@ -228,6 +233,12 @@ class BleTransport(
                     // you looking at the radio.
                     gatt.close()
                     if (this@BleTransport.gatt === gatt) this@BleTransport.gatt = null
+                    // A link that never came up is a refusal, not a disconnect, and saying
+                    // nothing left the list on screen as if the press had not happened. The
+                    // usual cause is the radio holding a connection to something else: it
+                    // takes one at a time.
+                    if (!linked) fail(R.string.ble_could_not_connect, status)
+                    linked = false
                     listener.onDisconnected()
                 }
             }

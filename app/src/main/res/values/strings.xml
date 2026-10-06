@@ -130,6 +130,8 @@
     <string name="ble_refused">The Bluetooth stack would not take another operation.</string>
     <string name="ble_no_answer">The Bluetooth link stopped answering, so one frame was given up on.</string>
     <string name="ble_not_connected">Not connected to a radio.</string>
+    <!-- %1$d is the Bluetooth stack's own status number; 133 is the usual one -->
+    <string name="ble_could_not_connect">The radio would not take the connection (%1$d). It takes one at a time, so it may still be connected to another phone or computer: disconnect it there, or turn the radio off and on, and try again.</string>
     <!-- %1$d is the size of the frame, %2$d what the link will carry. -->
     <plurals name="ble_frame_too_long">
         <item quantity="one">A frame of %1$d byte does not fit in %2$d.</item>
