@@ -13,8 +13,8 @@ Not a fork. Written from scratch in Kotlin, on Mudita's own
 
 | | |
 |---|---|
-| ![Choosing a radio](screenshots/1-radios.png) | ![What it does and does not claim](screenshots/2-about.png) |
-| ![The radio, its battery, and who it knows](screenshots/3-people.png) | ![Logging in to a repeater over the air](screenshots/4-repeater.png) |
+| ![Choosing a radio](screenshots/1-radios.png) | ![The radio, its battery, and who it knows](screenshots/2-people.png) |
+| ![A conversation through the mesh](screenshots/3-conversation.png) | ![Logging in to a repeater over the air](screenshots/4-repeater.png) |
 
 ## Where this is up to
 
