@@ -15,43 +15,26 @@ Not a fork. Written from scratch in Kotlin, on Mudita's own
 |---|---|
 | ![Choosing a radio](screenshots/1-radios.png) | ![What it does and does not claim](screenshots/2-about.png) |
 
-<!-- Two of the four. The other two want a radio with a contact in it — the people list with
-     somebody in it, and a conversation showing a message still waiting against one
-     acknowledged — and there is no second node yet to be that somebody. They go in when
-     there is one; the emulator has no Bluetooth to a real radio, so they cannot be staged. -->
-
 ## Where this is up to
 
-**Version 0.1.0.** 136 tests, green, and it has been talking to a radio for days rather than
-in theory. The commands and frames are written against `examples/companion_radio/MyMesh.cpp`
-in the MeshCore firmware rather than against the protocol documentation, for a reason given
-below. The session — handshake order, draining the message queue, matching an acknowledgement
-to the send that expected it — has no Android in it at all, so those rules are tested without
-a radio or a phone.
+**Version 0.1.2.** The commands and frames are written against
+`examples/companion_radio/MyMesh.cpp` in the MeshCore firmware rather than against the protocol
+documentation, for a reason given below. The session — handshake order, draining the message
+queue, matching an acknowledgement to the send that expected it — has no Android in it at all,
+so those rules are tested without a radio or a phone.
 
-Proven against a ThinkNode M5 on companion-v1.16.0: the handshake, the contact sync, reading
-and setting the radio parameters, the battery, and counting what the antenna hears whether or
-not any of it was readable.
+Against a ThinkNode M5 on companion firmware: the handshake, the contact sync, reading and
+setting the radio parameters, the battery, and counting what the antenna hears whether or not
+any of it was readable. Against a SenseCAP P1-Pro on repeater firmware 1.17.1: the repeater hears
+this app's announcement and floods it on, and this app logs in to the repeater as its admin over
+the air and reads back its firmware version.
 
-**It has never sent or received a message.** Not because that path is untried in the
-laboratory sense but because there is nobody to send one to: this is the only node here, it
-has heard nothing since moving to 915 MHz, and a contact list with nothing in it is a
-conversation screen that has never run against a peer. A repeater is on its way, and the
-first real question it answers is that one.
-
-Part of the reason nobody could have answered is worth stating plainly, because it was this
-app's fault rather than the mesh's: **a companion node advertises only when it is told to.**
-It has no advert timer — that is a repeater's job, and `simple_repeater` defaults to one
-every couple of minutes — so `createSelfAdvert` in the companion firmware is reachable from
-exactly two places: a button on the node's own screen, and `CMD_SEND_SELF_ADVERT` from
-whatever app is attached. This app had that command written and never called it, which makes
-a radio nobody can add as a contact and therefore nobody can write to. There is a press for
-it now, at the foot of the people list.
-
-Still to come, and waiting on the same thing: sending, the delivery states against a real
-acknowledgement, and administering a repeater over the air — which is built, and which has
-never been exercised against a repeater because there has not been one. Two of the four
-screenshots want the same.
+**A companion node advertises only when it is told to.** It has no advert timer — that is a
+repeater's job, and `simple_repeater` defaults to one every couple of minutes — so
+`createSelfAdvert` in the companion firmware is reachable from exactly two places: a button on
+the node's own screen, and `CMD_SEND_SELF_ADVERT` from whatever app is attached. A radio that
+never announces itself is one nobody can add as a contact, and so nobody can write to. There is
+a press for it at the foot of the people list.
 
 ## The documentation is wrong in at least one place that matters
 
@@ -195,6 +178,11 @@ release build comes out unsigned, which will not install anywhere.
 Download <https://github.com/wanderwildwood/amime/releases/latest/download/amime.apk> and
 sideload it. That address always points at the newest release, and every release publishes a
 `.sha256` beside the APK if you would rather check than trust.
+
+For updates without doing this by hand, add this repository to
+[Obtainium](https://github.com/ImranR98/Obtainium):
+
+    https://github.com/wanderwildwood/amime
 
 **The application id is settled** — updates install over what you have, keeping anything the
 app has stored.

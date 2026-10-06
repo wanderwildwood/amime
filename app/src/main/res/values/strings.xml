@@ -110,7 +110,7 @@
     <string name="about_licence">GNU General Public License v3 only</string>
     <string name="about_meshcore">MeshCore\'s protocol, implemented from reading its source. MeshCore itself is MIT and none of it is copied here.</string>
     <string name="about_icons">Icons from Material Symbols, Apache 2.0</string>
-    <string name="about_llama">Feed the llamas</string>
+    <string name="about_llama">feed the llamas</string>
     <string name="about_no_browser">There is no browser on this phone to open that with.</string>
     <string name="about_close">Close</string>
 

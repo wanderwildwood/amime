@@ -31,8 +31,6 @@ import com.wanderwildwood.amime.R
  *
  * A messaging app owes a stranger the line about where the messages go, and the answer here
  * is not the one anybody would guess: not a carrier, not a server, a radio.
- *
- * No source line, because there is no published repository to name. It goes in when there is.
  */
 @Composable
 fun AboutDialog(onDismiss: () -> Unit) {
@@ -74,6 +72,9 @@ fun AboutDialog(onDismiss: () -> Unit) {
         )
 
         Spacer(Modifier.height(14.dp))
+        TextMMD(text = "github.com/wanderwildwood/amime", style = MaterialTheme.typography.labelSmall)
+
+        Spacer(Modifier.height(14.dp))
         Llama()
 
         Spacer(Modifier.height(18.dp))
@@ -85,48 +86,51 @@ fun AboutDialog(onDismiss: () -> Unit) {
 }
 
 /**
- * A llama at the foot of the About, which opens the page a donation goes to.
+ * A llama at the foot of the About, which opens the page a donation goes to. The site's
+ * address sits at the start of the same line and opens the site; the llama and its words
+ * open the page.
  *
- * Three words rather than an address: a verb and an object, so what happens when you press
- * them is not a surprise even though the page is not named. The drawing is his own, and it is
- * ink rather than an emoji, which is a colour glyph and reaches the panel as a pale smudge.
- *
- * The Kompakt may have nothing registered for a web address, so the press is allowed to fail
- * and says so out loud rather than dying quietly.
+ * Straight to the checkout: the Donate button on the site only leads there anyway. The short
+ * square.link form, which is what the site itself links to, so a regenerated checkout follows
+ * it. The drawing is ink rather than an emoji, which is a colour glyph and reaches the panel as
+ * a pale smudge. A phone with nothing that opens a web address says so rather than doing
+ * nothing.
  */
 @Composable
 private fun Llama() {
     val context = LocalContext.current
+    fun open(address: String) {
+        runCatching {
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(address)))
+        }.onFailure {
+            Toast.makeText(context, context.getString(R.string.about_no_browser), Toast.LENGTH_SHORT).show()
+        }
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable {
-                // Straight to the checkout. The Donate button on the site only leads
-                // here anyway, so the page in between is a press the reader does not need.
-                // The short square.link form, not the long checkout.square.site address it
-                // redirects to -- the short one is what the site itself links to, so a
-                // regenerated checkout follows it and a published app does not break.
-                runCatching {
-                    context.startActivity(
-                        Intent(Intent.ACTION_VIEW, Uri.parse("https://square.link/u/AGu8oT10")),
-                    )
-                }.onFailure {
-                    Toast.makeText(
-                        context,
-                        context.getString(R.string.about_no_browser),
-                        Toast.LENGTH_SHORT,
-                    ).show()
-                }
-            }
-            .padding(vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        Image(
-            painter = painterResource(R.drawable.llama),
-            contentDescription = null,
-            modifier = Modifier.size(22.dp),
+        TextMMD(
+            text = "wanderthe.dev",
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier
+                .clickable { open("https://wanderthe.dev") }
+                .padding(vertical = 4.dp),
         )
         Spacer(Modifier.width(6.dp))
-        TextMMD(text = stringResource(R.string.about_llama), style = MaterialTheme.typography.labelSmall)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .clickable { open("https://square.link/u/AGu8oT10") }
+                .padding(vertical = 4.dp),
+        ) {
+            Image(
+                painter = painterResource(R.drawable.llama),
+                contentDescription = null,
+                modifier = Modifier.size(22.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            TextMMD(text = stringResource(R.string.about_llama), style = MaterialTheme.typography.labelSmall)
+        }
     }
 }
