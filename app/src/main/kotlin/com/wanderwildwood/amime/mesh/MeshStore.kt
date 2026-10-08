@@ -49,6 +49,7 @@ class MeshStore(
      * arrived while it was open was read as it landed.
      */
     fun markRead(prefix: List<Byte>) {
+        // Also a channel's key: a thread is a thread, whoever is on the other end.
         val newest = state.conversations[prefix].orEmpty().maxOfOrNull { it.id } ?: return
         if (state.readUpTo[prefix] == newest) return
         update { copy(readUpTo = readUpTo + (prefix to newest)) }
@@ -63,6 +64,18 @@ class MeshStore(
      * map: a `Sent` frame carries no reference to the message that produced it.
      */
     private val unanswered = ArrayDeque<Pair<List<Byte>, Long>>()
+
+    /** Channel messages handed to the radio and not yet answered, oldest first. */
+    private val unansweredOnChannels = ArrayDeque<Pair<List<Byte>, Long>>()
+
+    /**
+     * Channel messages that came off the radio before the slot they arrived on had been read.
+     *
+     * The queue on the radio is drained as soon as it says something is waiting, and the
+     * slots are read one at a time over the same link, so the first messages after connecting
+     * can easily arrive naming a slot this app has not heard about yet. They wait here for it.
+     */
+    private val beforeTheirChannel = mutableListOf<Frame.ChannelMessageReceived>()
 
     /** Acknowledgement hashes the radio is waiting on, against the message each belongs to. */
     private val awaiting = mutableMapOf<Long, Pair<List<Byte>, Long>>()
@@ -88,6 +101,28 @@ class MeshStore(
         )
         update {
             copy(conversations = conversations + (prefix to (conversations[prefix].orEmpty() + message)))
+        }
+        return id
+    }
+
+    /**
+     * Record a message said on a channel, before the radio has taken it. Returns its local id.
+     *
+     * Kept as typed. The radio sends it with this node's name in front, but in a thread of
+     * one's own messages the name would say nothing.
+     */
+    fun recordChannelSent(key: List<Byte>, text: String, timestamp: Long): Long {
+        val id = nextMessageId++
+        unansweredOnChannels.addLast(key to id)
+        val message = Message(
+            id = id,
+            text = text,
+            mine = true,
+            timestamp = timestamp,
+            delivery = Delivery.SENDING,
+        )
+        update {
+            copy(conversations = conversations + (key to (conversations[key].orEmpty() + message)))
         }
         return id
     }
@@ -150,8 +185,23 @@ class MeshStore(
      * stay true: a count carried across a reconnect is two measurements added together and
      * labelled as one, which on a site survey is the number the whole exercise turns on.
      */
-    fun onDisconnected() = update {
-        copy(ready = false, admin = null, heard = Heard())
+    fun onDisconnected() {
+        // Nothing will answer a channel message the radio had not yet taken. Left as it was,
+        // it would say "Sending" until the app was closed.
+        val stranded = unansweredOnChannels.toList()
+        unansweredOnChannels.clear()
+        beforeTheirChannel.clear()
+        stranded.forEach { setDelivery(it, Delivery.UNRESOLVED) }
+        update {
+            copy(
+                ready = false,
+                admin = null,
+                heard = Heard(),
+                channels = emptyList(),
+                freeChannelSlots = emptyList(),
+                channelsLoaded = false,
+            )
+        }
     }
 
     /** Begin administering a repeater. The answer comes back over the air, so this waits. */
@@ -222,6 +272,75 @@ class MeshStore(
         update {
             copy(conversations = conversations + (prefix to (conversations[prefix].orEmpty() + received)))
         }
+    }
+
+    // ---- channels ----
+
+    override fun onChannel(info: Frame.ChannelInfo) {
+        val index = info.index
+        update {
+            if (info.isEmpty) {
+                copy(
+                    channels = channels.filterNot { it.index == index },
+                    freeChannelSlots = (freeChannelSlots + index).distinct().sorted(),
+                )
+            } else {
+                val channel = Channel(index, info.name, info.secret.toList())
+                copy(
+                    channels = (channels.filterNot { it.index == index } + channel)
+                        .sortedBy { it.index },
+                    freeChannelSlots = freeChannelSlots - index,
+                )
+            }
+        }
+        val waiting = beforeTheirChannel.filter { it.channelIndex == index }
+        beforeTheirChannel.removeAll(waiting)
+        waiting.forEach(::onChannelMessage)
+    }
+
+    /**
+     * Every slot has been read. A message still waiting names a slot the radio does not have
+     * — it was left while the message sat in the radio's queue — and has nowhere to go.
+     */
+    override fun onChannelsLoaded() {
+        beforeTheirChannel.clear()
+        update { copy(channelsLoaded = true) }
+    }
+
+    override fun onChannelSet(index: Int, name: String, secret: ByteArray) =
+        onChannel(Frame.ChannelInfo(index, name, secret))
+
+    override fun onChannelMessage(message: Frame.ChannelMessageReceived) {
+        val channel = state.channels.firstOrNull { it.index == message.channelIndex }
+        if (channel == null) {
+            if (!state.channelsLoaded) beforeTheirChannel += message
+            return
+        }
+        val received = Message(
+            id = nextMessageId++,
+            // "name: words", as the sender's radio wrote it. Split for showing, not here,
+            // so that what is kept is exactly what arrived.
+            text = message.text,
+            mine = false,
+            timestamp = message.senderTimestamp,
+            delivery = Delivery.ACKNOWLEDGED,
+            snr = message.snr.takeUnless { it.isNaN() },
+            direct = message.cameDirect,
+        )
+        val key = channel.key
+        update {
+            copy(conversations = conversations + (key to (conversations[key].orEmpty() + received)))
+        }
+    }
+
+    override fun onChannelSent() {
+        val target = unansweredOnChannels.removeFirstOrNull() ?: return
+        setDelivery(target, Delivery.SENT)
+    }
+
+    override fun onChannelSendFailed(code: Int) {
+        val target = unansweredOnChannels.removeFirstOrNull() ?: return
+        setDelivery(target, Delivery.REFUSED)
     }
 
     override fun onSent(sent: Frame.Sent, awaitingAck: Boolean) {

@@ -224,6 +224,53 @@ sealed interface Frame {
         override fun hashCode(): Int = 31 * text.hashCode() + senderPrefix.contentHashCode()
     }
 
+    /**
+     * What is in one channel slot. Reply to [Commands.getChannel].
+     *
+     * An unused slot answers like any other, with an empty name and a key of zeros — which is
+     * also exactly what leaving a channel writes back — so [isEmpty] is how a free slot is
+     * found.
+     */
+    data class ChannelInfo(val index: Int, val name: String, val secret: ByteArray) : Frame {
+        val isEmpty: Boolean get() = name.isEmpty() && secret.all { it == 0.toByte() }
+
+        override fun equals(other: Any?): Boolean =
+            this === other || (other is ChannelInfo && index == other.index &&
+                name == other.name && secret.contentEquals(other.secret))
+
+        override fun hashCode(): Int = 31 * index + secret.contentHashCode()
+    }
+
+    /**
+     * Somebody said something on a channel.
+     *
+     * Unlike a direct message there is no sender key — a channel message is encrypted to
+     * everyone holding the channel's key and signed by nobody. Who said it is in the [text]
+     * itself, `name: words`, put there by the sender's radio. [channelIndex] is the slot on
+     * *this* radio whose key opened it.
+     */
+    data class ChannelMessageReceived(
+        val snr: Float,
+        val channelIndex: Int,
+        val pathLength: Int,
+        val txtType: Int,
+        val senderTimestamp: Long,
+        val text: String,
+    ) : Frame {
+        val cameDirect: Boolean get() = pathLength == PATH_LEN_DIRECT
+    }
+
+    /**
+     * A binary datagram on a channel. Not read here, but it arrives off the same queue as a
+     * message, so it has to be recognised for the queue to go on draining past it.
+     */
+    data class ChannelDataReceived(val bytes: ByteArray) : Frame {
+        override fun equals(other: Any?): Boolean =
+            this === other || (other is ChannelDataReceived && bytes.contentEquals(other.bytes))
+
+        override fun hashCode(): Int = bytes.contentHashCode()
+    }
+
     /** The queue is empty. Reply to [Commands.syncNextMessage]. */
     data object NoMoreMessages : Frame
 

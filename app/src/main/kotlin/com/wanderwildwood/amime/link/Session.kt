@@ -1,5 +1,6 @@
 package com.wanderwildwood.amime.link
 
+import com.wanderwildwood.amime.protocol.Channels
 import com.wanderwildwood.amime.protocol.Commands
 import com.wanderwildwood.amime.protocol.Decoder
 import com.wanderwildwood.amime.protocol.Frame
@@ -82,8 +83,35 @@ class Session(
         /** Battery, and storage when the firmware reports it. */
         fun onBattery(battery: Frame.BattAndStorage) {}
 
-        /** The radio refused a command. */
+        /**
+         * The radio refused a direct message or a contacts request — or something this class
+         * cannot place, which before replies were tracked was everything.
+         */
         fun onFailed(code: Int) {}
+
+        /** One of the radio's channel slots, as it reported it — empty ones included. */
+        fun onChannel(info: Frame.ChannelInfo) {}
+
+        /** Every slot has been asked about, so a free one can be told from an unknown one. */
+        fun onChannelsLoaded() {}
+
+        /** Somebody said something on a channel this radio holds. */
+        fun onChannelMessage(message: Frame.ChannelMessageReceived) {}
+
+        /** The radio took a channel message and sent it. There is no acknowledgement on a channel. */
+        fun onChannelSent() {}
+
+        /** The radio would not send a channel message. */
+        fun onChannelSendFailed(code: Int) {}
+
+        /**
+         * A channel slot was written. An empty [name] with a key of zeros is a slot emptied,
+         * which is what leaving a channel is.
+         */
+        fun onChannelSet(index: Int, name: String, secret: ByteArray) {}
+
+        /** The radio would not write that slot. */
+        fun onChannelSetFailed(index: Int, code: Int) {}
 
         /**
          * Something is wrong with how this app is talking to the radio, as opposed to
@@ -117,6 +145,48 @@ class Session(
         private set
 
     private var draining = false
+
+    /**
+     * Commands sent whose answer has not come back yet, oldest first.
+     *
+     * The radio answers every command within the same call that handles it
+     * (`handleCmdFrame` in `MyMesh.cpp`), so answers come back in the order the commands went
+     * out. Most answers say what they answer, but three do not — a bare OK, a bare error and a
+     * `Sent` — and a channel message, a channel slot written, an announce and a direct
+     * message can all be in flight together. Without this a refused channel was blamed on
+     * whichever direct message happened to be oldest.
+     *
+     * An answer settles the first entry that could have produced it, and anything still ahead
+     * of that entry lost its answer somewhere — the link drops a frame it has given up on — so
+     * it is let go rather than left to take the next answer that comes.
+     */
+    private val inFlight = ArrayDeque<Awaiting>()
+
+    private sealed interface Awaiting {
+        /** A direct message: answered by `Sent`. */
+        data object Message : Awaiting
+
+        /** A login or a CLI line: answered by `Sent`, and nobody is waiting on it here. */
+        data object OtherSent : Awaiting
+
+        /** A contacts request: answered by the start of the list. */
+        data object Contacts : Awaiting
+
+        /** A channel message: answered by an OK. */
+        data object ChannelMessage : Awaiting
+
+        /** A channel slot written: answered by an OK. */
+        class ChannelSet(val index: Int, val name: String, val secret: ByteArray) : Awaiting
+
+        /** A channel slot asked about: answered by its contents. */
+        class ChannelGet(val index: Int) : Awaiting
+
+        /** An announce, a route reset, a logout, a radio setting: answered by an OK. */
+        data object OtherOk : Awaiting
+    }
+
+    /** How many channel slots the radio has, for walking them once after connecting. */
+    private var channelSlots = 0
     private var mostRecentLastMod = 0L
 
     /**
@@ -144,6 +214,8 @@ class Session(
         syncingContacts = false
         syncedSince = 0L
         awaitingAcks.clear()
+        inFlight.clear()
+        channelSlots = 0
         Commands.handshake(appName).forEach(transport::send)
     }
 
@@ -156,7 +228,7 @@ class Session(
     fun syncContacts(since: Long? = null) {
         if (syncingContacts) return
         syncingContacts = true
-        transport.send(Commands.getContacts(since))
+        send(Awaiting.Contacts, Commands.getContacts(since))
     }
 
     /**
@@ -173,7 +245,63 @@ class Session(
         timestamp: Long,
         attempt: Int = 0,
     ) {
-        transport.send(Commands.sendTextMessage(recipientPrefix, text, timestamp, attempt))
+        send(Awaiting.Message, Commands.sendTextMessage(recipientPrefix, text, timestamp, attempt))
+    }
+
+    /**
+     * Say something on the channel in slot [index].
+     *
+     * The radio puts this node's name in front, so [text] goes as typed.
+     */
+    fun sendChannelMessage(index: Int, text: String, timestamp: Long) =
+        send(Awaiting.ChannelMessage, Commands.sendChannelMessage(index, text, timestamp))
+
+    /** Put a channel in slot [index]. The radio saves it straight away. */
+    fun setChannel(index: Int, name: String, secret: ByteArray) =
+        send(Awaiting.ChannelSet(index, name, secret), Commands.setChannel(index, name, secret))
+
+    /**
+     * Leave the channel in slot [index].
+     *
+     * There is no delete in the protocol: the slot is written back to what an unused one
+     * holds, an empty name and a key of zeros, which is also how a free slot is recognised.
+     */
+    fun leaveChannel(index: Int) = setChannel(index, "", ByteArray(Channels.SECRET))
+
+    /**
+     * Ask about every channel slot, one at a time.
+     *
+     * One at a time because the radio's queue of frames waiting to go out over Bluetooth holds
+     * four (`FRAME_QUEUE_SIZE` in `esp32/SerialBLEInterface.h`) and drops what does not fit, so
+     * forty questions sent at once would get a handful of answers.
+     */
+    private fun loadChannels(slots: Int) {
+        channelSlots = slots
+        if (slots > 0) askChannel(0) else listener.onChannelsLoaded()
+    }
+
+    private fun askChannel(index: Int) = send(Awaiting.ChannelGet(index), Commands.getChannel(index))
+
+    private fun afterChannel(index: Int) {
+        if (index + 1 < channelSlots) askChannel(index + 1) else listener.onChannelsLoaded()
+    }
+
+    private fun send(awaiting: Awaiting, frame: ByteArray) {
+        inFlight.addLast(awaiting)
+        transport.send(frame)
+    }
+
+    /** The first command still waiting that [answers] could belong to, letting go of any ahead of it. */
+    private fun settle(answers: (Awaiting) -> Boolean): Awaiting? {
+        val at = inFlight.indexOfFirst(answers)
+        if (at < 0) return null
+        repeat(at) { lost(inFlight.removeFirst()) }
+        return inFlight.removeFirst()
+    }
+
+    /** A command whose answer never came. Only a walk of the slots needs to go on regardless. */
+    private fun lost(awaiting: Awaiting) {
+        if (awaiting is Awaiting.ChannelGet) afterChannel(awaiting.index)
     }
 
     /**
@@ -190,7 +318,7 @@ class Session(
      * and it is a transmission the whole mesh carries, so it belongs behind a deliberate
      * press rather than on a timer of our own.
      */
-    fun advertise(flood: Boolean = true) = transport.send(Commands.sendSelfAdvert(flood))
+    fun advertise(flood: Boolean = true) = send(Awaiting.OtherOk, Commands.sendSelfAdvert(flood))
 
     /**
      * Forget the route to a contact, so the next message to them finds its own way.
@@ -199,7 +327,7 @@ class Session(
      * the contact's `lastmod`, so a sync will not report it. The caller has to put its own
      * copy right.
      */
-    fun resetPath(publicKey: ByteArray) = transport.send(Commands.resetPath(publicKey))
+    fun resetPath(publicKey: ByteArray) = send(Awaiting.OtherOk, Commands.resetPath(publicKey))
 
     /** Ask for battery and storage. */
     fun refreshBattery() = transport.send(Commands.getBattAndStorage())
@@ -211,12 +339,13 @@ class Session(
      * all four numbers, so this is the setting that decides whether the mesh exists at all.
      */
     fun setRadioParams(frequencyKhz: Int, bandwidthHz: Int, spreadingFactor: Int, codingRate: Int) =
-        transport.send(
+        send(
+            Awaiting.OtherOk,
             Commands.setRadioParams(frequencyKhz, bandwidthHz, spreadingFactor, codingRate),
         )
 
     /** Fix the Bluetooth pairing PIN. Takes effect when the radio next restarts. */
-    fun setDevicePin(pin: Int) = transport.send(Commands.setDevicePin(pin))
+    fun setDevicePin(pin: Int) = send(Awaiting.OtherOk, Commands.setDevicePin(pin))
 
     /**
      * Log in to a repeater so it will take commands.
@@ -226,9 +355,9 @@ class Session(
      * is out of range.
      */
     fun login(publicKey: ByteArray, password: String) =
-        transport.send(Commands.sendLogin(publicKey, password))
+        send(Awaiting.OtherSent, Commands.sendLogin(publicKey, password))
 
-    fun logout(publicKey: ByteArray) = transport.send(Commands.logout(publicKey))
+    fun logout(publicKey: ByteArray) = send(Awaiting.OtherOk, Commands.logout(publicKey))
 
     /**
      * Send one CLI command to a node already logged in to.
@@ -236,7 +365,7 @@ class Session(
      * No acknowledgement is expected for these, so the only sign it worked is the answer.
      */
     fun sendCliCommand(recipientPrefix: ByteArray, command: String) =
-        transport.send(Commands.sendCliCommand(recipientPrefix, command))
+        send(Awaiting.OtherSent, Commands.sendCliCommand(recipientPrefix, command))
 
     /** One whole frame, as it came off the radio. */
     fun onFrame(bytes: ByteArray) = handle(Decoder.decode(bytes))
@@ -251,9 +380,32 @@ class Session(
             is Frame.SelfInfo -> {
                 self = frame
                 listener.onReady(frame)
+                loadChannels(device?.maxGroupChannels ?: 0)
             }
 
-            is Frame.ContactsStart -> syncingContacts = true
+            is Frame.ContactsStart -> {
+                settle { it == Awaiting.Contacts }
+                syncingContacts = true
+            }
+
+            is Frame.ChannelInfo -> {
+                val asked = settle { it is Awaiting.ChannelGet && it.index == frame.index }
+                listener.onChannel(frame)
+                if (asked != null) afterChannel(frame.index)
+            }
+
+            is Frame.ChannelMessageReceived -> {
+                if (frame.snr.isNaN()) listener.onProtocolProblem(Problem.HANDSHAKE_SKIPPED)
+                listener.onChannelMessage(frame)
+                draining = true
+                transport.send(Commands.syncNextMessage())
+            }
+
+            // Not read, but it came off the queue, and the queue has more behind it.
+            is Frame.ChannelDataReceived -> {
+                draining = true
+                transport.send(Commands.syncNextMessage())
+            }
 
             is Frame.Contact -> {
                 if (frame.lastMod > mostRecentLastMod) mostRecentLastMod = frame.lastMod
@@ -314,6 +466,10 @@ class Session(
             is Frame.NoMoreMessages -> draining = false
 
             is Frame.Sent -> {
+                // A login's or a CLI line's `Sent` is nobody's message. With nothing tracked
+                // at all it is passed on as it always was.
+                val whose = settle { it == Awaiting.Message || it == Awaiting.OtherSent }
+                if (whose == Awaiting.OtherSent) return
                 val awaiting = frame.expectedAck != 0L
                 if (awaiting) awaitingAcks += frame.expectedAck
                 listener.onSent(frame, awaiting)
@@ -328,10 +484,20 @@ class Session(
             }
 
             is Frame.Failed -> {
-                // A refused contacts request leaves no iterator running, so the flag has to
-                // come back down or every later sync is silently dropped by this class.
-                if (syncingContacts) syncingContacts = false
-                listener.onFailed(frame.code)
+                // An error says nothing about what it answers, but answers come in order, so
+                // it belongs to the oldest command still waiting.
+                when (val whose = inFlight.removeFirstOrNull()) {
+                    is Awaiting.ChannelGet -> afterChannel(whose.index)
+                    is Awaiting.ChannelSet -> listener.onChannelSetFailed(whose.index, frame.code)
+                    Awaiting.ChannelMessage -> listener.onChannelSendFailed(frame.code)
+                    Awaiting.OtherOk, Awaiting.OtherSent -> Unit
+                    Awaiting.Message, Awaiting.Contacts, null -> {
+                        // A refused contacts request leaves no iterator running, so the flag
+                        // has to come back down or every later sync is silently dropped here.
+                        if (syncingContacts) syncingContacts = false
+                        listener.onFailed(frame.code)
+                    }
+                }
             }
 
             is Frame.Malformed -> {
@@ -341,7 +507,15 @@ class Session(
                 if (frame.code == Resp.END_OF_CONTACTS) syncingContacts = false
             }
 
-            is Frame.Unhandled -> listener.onProtocolProblem(Problem.UNKNOWN_FRAME)
+            is Frame.Unhandled -> {
+                listener.onProtocolProblem(Problem.UNKNOWN_FRAME)
+                // Mid-drain, a reply this app cannot read is most likely the next thing off
+                // the queue, of a kind newer than this app. Stopping here would leave the
+                // drain marked as running with nothing asking, and every later message
+                // would wait on the radio until the next connection. Asking once more costs
+                // at worst a "no more".
+                if (draining && frame.code < 0x80) transport.send(Commands.syncNextMessage())
+            }
 
             is Frame.LoginSucceeded -> listener.onLoggedIn(frame)
 
@@ -351,7 +525,17 @@ class Session(
 
             is Frame.BattAndStorage -> listener.onBattery(frame)
 
-            Frame.Ok, Frame.Disabled -> Unit
+            Frame.Ok -> when (
+                val whose = settle {
+                    it == Awaiting.ChannelMessage || it is Awaiting.ChannelSet || it == Awaiting.OtherOk
+                }
+            ) {
+                Awaiting.ChannelMessage -> listener.onChannelSent()
+                is Awaiting.ChannelSet -> listener.onChannelSet(whose.index, whose.name, whose.secret)
+                else -> Unit
+            }
+
+            Frame.Disabled -> Unit
         }
     }
 }

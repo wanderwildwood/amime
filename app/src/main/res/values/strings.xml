@@ -43,6 +43,20 @@
     </plurals>
     <string name="people_heard_strongest">, strongest %1$.1f dB</string>
 
+    <!-- Channels: group chat shared by everyone holding the channel\'s key -->
+    <string name="channel_kind">Channel</string>
+    <string name="channel_join">Join a channel</string>
+    <!-- #meshavl is an example of a channel name and is not translated. -->
+    <string name="join_name_note">A name, like #meshavl. Anyone who knows the name can read it.</string>
+    <string name="join_key_note">Key, only for a private channel: the 32 characters its owner shares.</string>
+    <string name="join_join">Join</string>
+    <string name="join_no_name">A channel needs a name.</string>
+    <string name="join_name_too_long">That name is longer than the radio keeps.</string>
+    <string name="join_bad_key">A key is 32 characters, 0 to 9 and a to f.</string>
+    <string name="join_no_room">The radio holds as many channels as it can. Leave one first.</string>
+    <string name="channel_leave">Leave</string>
+    <string name="channel_leave_armed">Leave — tap again</string>
+
     <!-- The radio\'s battery: volts, then roughly what they mean. -->
     <string name="battery">%1$.2f V, %2$s</string>
     <string name="battery_full">full</string>
@@ -125,6 +139,7 @@
     <string name="problem_no_permission">Without permission to use Bluetooth this cannot look for a radio. Android\'s settings for this app is where it is given.</string>
     <string name="problem_contacts_full">The radio is holding as many contacts as it can, so nobody new will appear until some are removed.</string>
     <string name="problem_no_key">This contact arrived without a full key, so there is no way to log in to it.</string>
+    <string name="problem_channel_refused">The radio would not take that channel.</string>
     <string name="problem_not_saving">Messages are not being saved on this phone.</string>
 
     <string name="ble_refused">The Bluetooth stack would not take another operation.</string>

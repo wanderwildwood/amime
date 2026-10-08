@@ -215,6 +215,70 @@ object Commands {
         return FrameWriter(1 + Sizes.PUB_KEY).u8(Cmd.RESET_PATH).bytes(publicKey).build()
     }
 
+    /**
+     * Ask what is in one of the radio's channel slots.
+     *
+     * Answered with [Resp.CHANNEL_INFO] for any index below the count in
+     * [Frame.DeviceInfo.maxGroupChannels] — an unused slot answers too, with an empty name and
+     * a key of zeros — and a not-found above it.
+     */
+    fun getChannel(index: Int): ByteArray {
+        require(index in 0..255) { "a channel index is one byte, got $index" }
+        return FrameWriter(2).u8(Cmd.GET_CHANNEL).u8(index).build()
+    }
+
+    /**
+     * Put a channel into a slot, or empty the slot.
+     *
+     * The frame is the index, a 32-byte name padded with NULs, and a 16-byte key: exactly
+     * 50 bytes. ⚠ The firmware decides which form it has been sent **by length** — at 66 bytes
+     * or more it takes the frame for a 256-bit key and refuses it outright — so the key is
+     * never padded out to the 32 bytes the radio stores.
+     *
+     * An empty [name] with a key of zeros is how a channel is left: there is no delete, only a
+     * slot written back to what an unused one looks like. Answered with an OK, or a not-found
+     * for an index past the radio's last slot. The radio saves it at once.
+     */
+    fun setChannel(index: Int, name: String, secret: ByteArray): ByteArray {
+        require(index in 0..255) { "a channel index is one byte, got $index" }
+        require(secret.size == Channels.SECRET) {
+            "a channel key is ${Channels.SECRET} bytes, got ${secret.size}"
+        }
+        val nameBytes = name.toByteArray(Charsets.UTF_8)
+        require(nameBytes.size <= Channels.MAX_NAME_BYTES) {
+            "a channel name fits in ${Channels.MAX_NAME_BYTES} bytes, got ${nameBytes.size}"
+        }
+        return FrameWriter(2 + 32 + Channels.SECRET)
+            .u8(Cmd.SET_CHANNEL)
+            .u8(index)
+            .bytes(nameBytes.copyOf(32))
+            .bytes(secret)
+            .build()
+    }
+
+    /**
+     * Say something on a channel.
+     *
+     * This is opcode 3, the one MeshCore's documentation calls the direct message. The radio
+     * puts this node's name and a colon in front of the text itself (`sendGroupMessage` in
+     * `BaseChatMesh.cpp`), so the text goes without one. ⚠ Name, colon and text together are
+     * cut **silently** at [Sizes.MAX_TEXT] — unlike a direct message, which is refused — so a
+     * caller has to leave room for the name.
+     *
+     * Answered with a bare OK, not a [Resp.SENT]: a channel has no acknowledgement, so there is
+     * nothing further to wait for.
+     */
+    fun sendChannelMessage(index: Int, text: String, timestamp: Long): ByteArray {
+        require(index in 0..255) { "a channel index is one byte, got $index" }
+        return FrameWriter()
+            .u8(Cmd.SEND_CHANNEL_TXT_MSG)
+            .u8(TxtType.PLAIN) // the only type the firmware accepts on a channel
+            .u8(index)
+            .u32(timestamp)
+            .text(text)
+            .build()
+    }
+
     /** Re-advertise this node so others can find it. */
     fun sendSelfAdvert(flood: Boolean = false): ByteArray =
         FrameWriter(2).u8(Cmd.SEND_SELF_ADVERT).u8(if (flood) 1 else 0).build()

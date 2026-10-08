@@ -35,6 +35,7 @@ import com.mudita.mmd.components.text.TextMMD
 import com.mudita.mmd.components.text_field.TextFieldMMD
 import com.mudita.mmd.components.top_app_bar.TopAppBarMMD
 import com.wanderwildwood.amime.R
+import com.wanderwildwood.amime.mesh.Channel
 import com.wanderwildwood.amime.mesh.MeshState
 import com.wanderwildwood.amime.mesh.Person
 
@@ -51,6 +52,8 @@ fun PeopleScreen(
     state: MeshState,
     problem: String?,
     onOpen: (Person) -> Unit,
+    onOpenChannel: (Channel) -> Unit,
+    onJoinChannel: (String, String) -> String?,
     onAdminister: (Person, String) -> Unit,
     onAnnounce: () -> Unit,
     onDismissProblem: () -> Unit,
@@ -58,6 +61,7 @@ fun PeopleScreen(
     var aboutOpen by remember { mutableStateOf(false) }
     var loginTo by remember { mutableStateOf<Person?>(null) }
     var announced by remember { mutableStateOf(false) }
+    var joining by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surface,
@@ -103,10 +107,37 @@ fun PeopleScreen(
                 )
             }
 
-            if (state.people.isEmpty()) {
+            // Channels first, then the way into another, then the people. One list, so the
+            // panel turns pages over all of it the same way. Before the radio has answered
+            // there are no channels, and the screen says why it is empty as it always has.
+            val channels = state.channels
+            if (channels.isEmpty() && state.people.isEmpty()) {
                 Empty(state, Modifier.weight(1f))
             } else {
                 LazyColumnMMD(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    items(channels.size) { index ->
+                        val channel = channels[index]
+                        ChannelRow(
+                            channel = channel,
+                            unread = state.unreadCount(channel.key),
+                            onClick = { onOpenChannel(channel) },
+                        )
+                    }
+                    if (channels.isNotEmpty()) {
+                        item {
+                            JoinChannelRow(
+                                enabled = state.ready && state.channelsLoaded,
+                                onClick = { joining = true },
+                            )
+                        }
+                    }
+                    // Nobody yet: the same account of the air the empty screen gives, as a
+                    // line in the list rather than instead of it.
+                    if (state.people.isEmpty()) {
+                        item {
+                            Empty(state, Modifier.padding(vertical = 24.dp))
+                        }
+                    }
                     items(state.people.size) { index ->
                         val person = state.people[index]
                         PersonRow(
@@ -152,6 +183,8 @@ fun PeopleScreen(
     }
 
     if (aboutOpen) AboutDialog(onDismiss = { aboutOpen = false })
+
+    if (joining) JoinChannelDialog(onDismiss = { joining = false }, onJoin = onJoinChannel)
 
     loginTo?.let { person ->
         LoginDialog(

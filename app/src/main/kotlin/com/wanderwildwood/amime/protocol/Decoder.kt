@@ -58,6 +58,20 @@ object Decoder {
             Resp.CONTACT_MSG_RECV_V3 -> if (frame.size >= 16) messageV3(frame) else short()
             Resp.CONTACT_MSG_RECV -> if (frame.size >= 13) messageLegacy(frame) else short()
 
+            Resp.CHANNEL_MSG_RECV_V3 -> if (frame.size >= 11) channelMessageV3(frame) else short()
+            Resp.CHANNEL_MSG_RECV -> if (frame.size >= 8) channelMessageLegacy(frame) else short()
+            Resp.CHANNEL_DATA_RECV -> Frame.ChannelDataReceived(frame)
+            Resp.CHANNEL_INFO ->
+                if (frame.size >= 2 + 32 + Channels.SECRET) {
+                    Frame.ChannelInfo(
+                        index = frame.u8(1),
+                        name = frame.strz(2, 32),
+                        secret = frame.copyOfRange(34, 34 + Channels.SECRET),
+                    )
+                } else {
+                    short()
+                }
+
             Resp.BATT_AND_STORAGE -> if (frame.size >= 3) battery(frame) else short()
 
             Push.LOGIN_SUCCESS -> if (frame.size >= 8) loginSucceeded(frame) else short()
@@ -195,6 +209,30 @@ object Decoder {
             text = f.tail(if (signed) 17 else 13),
         )
     }
+
+    /**
+     * `onChannelMessageRecv` in `MyMesh.cpp`: code, SNR times four, two reserved bytes, the
+     * channel slot, the path length, the text type, a four-byte timestamp, then the text to
+     * the end of the frame.
+     */
+    private fun channelMessageV3(f: ByteArray) = Frame.ChannelMessageReceived(
+        snr = f.i8(1) / 4f,
+        channelIndex = f.u8(4),
+        pathLength = f.u8(5),
+        txtType = f.u8(6),
+        senderTimestamp = f.u32(7),
+        text = f.tail(11),
+    )
+
+    /** The same without the SNR and the reserved bytes, for an app that skipped the query. */
+    private fun channelMessageLegacy(f: ByteArray) = Frame.ChannelMessageReceived(
+        snr = Float.NaN,
+        channelIndex = f.u8(1),
+        pathLength = f.u8(2),
+        txtType = f.u8(3),
+        senderTimestamp = f.u32(4),
+        text = f.tail(8),
+    )
 
     private fun battery(f: ByteArray) = Frame.BattAndStorage(
         batteryMillivolts = f.u16(1),

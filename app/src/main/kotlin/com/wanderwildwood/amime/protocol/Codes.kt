@@ -68,6 +68,12 @@ object Resp {
     const val CONTACT_MSG_RECV_V3 = 16
     const val CHANNEL_MSG_RECV_V3 = 17
     const val CHANNEL_INFO = 18
+
+    /**
+     * A binary datagram on a channel. Nothing here sends or reads them, but they come off the
+     * same queue as channel text, so the drain has to recognise one and keep going.
+     */
+    const val CHANNEL_DATA_RECV = 27
 }
 
 /**

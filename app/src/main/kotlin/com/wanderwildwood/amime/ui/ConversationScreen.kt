@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -31,7 +32,6 @@ import com.mudita.mmd.components.text.TextMMD
 import com.mudita.mmd.components.text_field.TextFieldMMD
 import com.mudita.mmd.components.top_app_bar.TopAppBarMMD
 import com.wanderwildwood.amime.R
-import com.wanderwildwood.amime.mesh.Conversation
 import com.wanderwildwood.amime.mesh.Delivery
 import com.wanderwildwood.amime.mesh.Message
 import com.wanderwildwood.amime.protocol.Sizes
@@ -48,11 +48,25 @@ import com.wanderwildwood.amime.protocol.Sizes
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConversationScreen(
-    conversation: Conversation,
+    title: String,
+    messages: List<Message>,
     canSend: Boolean,
     onSend: (String) -> Unit,
-    onSendAgain: (Message) -> Unit,
     onBack: () -> Unit,
+    /**
+     * What to offer under a message that went out and never came back, or null for a thread
+     * with nothing to wait for — a channel, where nobody acknowledges anything.
+     */
+    sendAgain: Int? = null,
+    onSendAgain: (Message) -> Unit = {},
+    /**
+     * A channel: received messages carry their sender's name, and almost all of them came
+     * through the mesh, so saying so under each would be furniture.
+     */
+    channel: Boolean = false,
+    /** The most bytes the radio will carry for this thread. A channel spends some on the name. */
+    maxBytes: Int = Sizes.MAX_TEXT,
+    actions: @Composable RowScope.() -> Unit = {},
 ) {
     var draft by remember { mutableStateOf("") }
 
@@ -64,7 +78,7 @@ fun ConversationScreen(
     // keyboard the two are the same number; for anything else they are not, and the limit
     // that matters is the one the firmware will enforce.
     val length = remember(draft) { draft.toByteArray(Charsets.UTF_8).size }
-    val overBy = length - Sizes.MAX_TEXT
+    val overBy = length - maxBytes
 
     /*
      * A thread opens at its newest message rather than at its oldest.
@@ -88,19 +102,20 @@ fun ConversationScreen(
      * twice; where it has none, the message already floods and there is nothing to forget.
      * Two tappable lines under one message would be asking the reader to know which.
      */
-    val unanswered = remember(conversation.messages) {
-        conversation.messages.lastOrNull {
+    val unanswered = remember(messages, sendAgain) {
+        if (sendAgain == null) return@remember null
+        messages.lastOrNull {
             it.mine &&
                 (it.delivery == Delivery.UNANSWERED || it.delivery == Delivery.UNRESOLVED)
         }
     }
 
     val listState = rememberLazyListState()
-    LaunchedEffect(conversation.messages.size) {
-        if (conversation.messages.isNotEmpty()) {
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) {
             // Instant, not animated: the panel redraws in full and a smooth scroll on E Ink
             // is a smear with a battery cost.
-            listState.scrollToItem(conversation.messages.lastIndex)
+            listState.scrollToItem(messages.lastIndex)
         }
     }
 
@@ -108,31 +123,26 @@ fun ConversationScreen(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             TopAppBarMMD(
-                title = { TextMMD(text = conversation.person.label) },
+                title = { TextMMD(text = title) },
                 navigationIcon = {
                     BarButton(Icons.Close, stringResource(R.string.conversation_back), onBack)
                 },
+                actions = actions,
             )
         },
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             LazyColumnMMD(state = listState, modifier = Modifier.weight(1f).fillMaxWidth()) {
-                items(conversation.messages.size) { index ->
-                    val message = conversation.messages[index]
+                items(messages.size) { index ->
+                    val message = messages[index]
                     // One item rather than two emissions, so that the offer stays on the
                     // same page as the message it is about — MMD's list turns pages by
                     // counting items, not by measuring them.
                     Column {
-                        MessageRow(message)
-                        if (message.id == unanswered?.id) {
+                        MessageRow(message, channel)
+                        if (sendAgain != null && message.id == unanswered?.id) {
                             TextMMD(
-                                text = stringResource(
-                                    if (conversation.person.pathKnown) {
-                                        R.string.message_send_again_new_route
-                                    } else {
-                                        R.string.message_send_again
-                                    },
-                                ),
+                                text = stringResource(sendAgain),
                                 style = MaterialTheme.typography.labelSmall,
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -146,7 +156,7 @@ fun ConversationScreen(
 
             // Only near the limit, and only then. A count under every message is furniture
             // on a screen this size, and the number matters for about one message in fifty.
-            if (length > Sizes.MAX_TEXT - NEARLY) {
+            if (length > maxBytes - NEARLY) {
                 TextMMD(
                     text = if (overBy > 0) {
                         pluralStringResource(R.plurals.conversation_too_many, overBy, overBy)
@@ -190,7 +200,9 @@ fun ConversationScreen(
 }
 
 @Composable
-private fun MessageRow(message: Message) {
+private fun MessageRow(message: Message, channel: Boolean) {
+    // On a channel the sender's radio writes "name: words"; the name goes above the words.
+    val (sender, body) = if (channel && !message.mine) splitSender(message.text) else null to message.text
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -206,19 +218,32 @@ private fun MessageRow(message: Message) {
                 .stateBorder(settled = message.delivery.isSettled)
                 .padding(horizontal = 10.dp, vertical = 8.dp),
         ) {
+            sender?.let { TextMMD(text = it, style = MaterialTheme.typography.labelSmall) }
             TextMMD(
-                text = message.text,
+                text = body,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = if (message.mine) FontWeight.Normal else FontWeight.Bold,
             )
-            message.note()?.let { TextMMD(text = it, style = MaterialTheme.typography.labelSmall) }
+            message.note(channel)?.let { TextMMD(text = it, style = MaterialTheme.typography.labelSmall) }
         }
     }
+}
+
+/**
+ * A channel message's sender and words, from the "name: words" the sender's radio wrote
+ * (`sendGroupMessage` in `BaseChatMesh.cpp`). Text without the separator — something other
+ * than MeshCore's own firmware put it there — is all words and no name.
+ */
+internal fun splitSender(text: String): Pair<String?, String> {
+    val at = text.indexOf(": ")
+    if (at <= 0) return null to text
+    return text.substring(0, at) to text.substring(at + 2)
 }
 
 /** Settled means the outcome is known, not that it was good. */
 private val Delivery.isSettled: Boolean
     get() = this == Delivery.ACKNOWLEDGED ||
+        this == Delivery.SENT ||
         this == Delivery.NO_ACK_EXPECTED ||
         this == Delivery.REFUSED ||
         // The waiting is over, which is knowledge, even though what happened is not.
@@ -235,7 +260,7 @@ private val Delivery.isSettled: Boolean
  * furniture stops being read in the row where it mattered.
  */
 @Composable
-private fun Message.note(): String? = when {
+private fun Message.note(channel: Boolean): String? = when {
     mine && delivery == Delivery.REFUSED -> stringResource(R.string.message_refused)
     mine && delivery == Delivery.NO_ACK_EXPECTED ->
         stringResource(R.string.message_no_confirmation)
@@ -248,7 +273,7 @@ private fun Message.note(): String? = when {
     // Only worth saying where it is not the ordinary case: a message that came through
     // repeaters travelled further than one that did not, and the signal is the reason a
     // reply might not make it back.
-    !mine && direct == false -> stringResource(R.string.message_through_mesh) + snrNote()
+    !mine && direct == false && !channel -> stringResource(R.string.message_through_mesh) + snrNote()
     !mine && snr != null && snr < WEAK_SNR -> stringResource(R.string.message_weak_signal) + snrNote()
     else -> null
 }

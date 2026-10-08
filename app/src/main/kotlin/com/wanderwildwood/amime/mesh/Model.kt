@@ -1,6 +1,7 @@
 package com.wanderwildwood.amime.mesh
 
 import com.wanderwildwood.amime.protocol.AdvType
+import com.wanderwildwood.amime.protocol.Channels
 
 /**
  * Someone, or something, on the mesh.
@@ -54,6 +55,20 @@ data class Person(
     val isSensor: Boolean get() = type == AdvType.SENSOR
 }
 
+/**
+ * A channel this radio holds: a name, a key, and the slot on the radio they sit in.
+ *
+ * Its thread is kept under the [key] rather than the slot, because the slot is only where this
+ * radio happens to keep it — leave a channel and join another, and the slot means something
+ * else — while the key is what the channel is. Sixteen bytes, so it cannot be mistaken for a
+ * person's six-byte prefix in the same map.
+ */
+data class Channel(val index: Int, val name: String, val secret: List<Byte>) {
+    val key: List<Byte> get() = secret
+
+    val isPublic: Boolean get() = Channels.isPublic(secret.toByteArray())
+}
+
 /** How far a message this app sent has actually got. */
 enum class Delivery {
     /** Handed to the radio; the radio has not answered yet. */
@@ -76,6 +91,13 @@ enum class Delivery {
 
     /** The radio refused it. */
     REFUSED,
+
+    /**
+     * Sent on a channel. The radio took it and put it on the air, and that is all anybody will
+     * ever know: a channel has no acknowledgement, so this is as settled as it gets and says
+     * nothing more about it.
+     */
+    SENT,
 
     /**
      * The radio's own estimate of how long an acknowledgement could take has passed.
@@ -160,7 +182,18 @@ data class MeshState(
     val heard: Heard = Heard(),
     /** True once the radio has answered the handshake and the app can send. */
     val ready: Boolean = false,
+    /** The channels the radio holds, in slot order. */
+    val channels: List<Channel> = emptyList(),
+    /** Slots the radio has said are unused, lowest first. Where a channel joined goes. */
+    val freeChannelSlots: List<Int> = emptyList(),
+    /**
+     * Every slot has been asked about. Until then an unknown slot cannot be told from a free
+     * one, and joining could write over a channel nobody had read yet.
+     */
+    val channelsLoaded: Boolean = false,
 ) {
+    fun channel(key: List<Byte>): Channel? = channels.firstOrNull { it.key == key }
+
     /**
      * How many messages in this thread arrived and have not been read.
      *

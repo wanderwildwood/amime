@@ -15,11 +15,13 @@ import androidx.lifecycle.viewModelScope
 import com.wanderwildwood.amime.ble.BleTransport
 import com.wanderwildwood.amime.ble.RadioScanner
 import com.wanderwildwood.amime.link.Session
+import com.wanderwildwood.amime.mesh.Channel
 import com.wanderwildwood.amime.mesh.MeshState
 import com.wanderwildwood.amime.mesh.MeshStore
 import com.wanderwildwood.amime.mesh.Message
 import com.wanderwildwood.amime.mesh.MessageLog
 import com.wanderwildwood.amime.mesh.Person
+import com.wanderwildwood.amime.protocol.Channels
 import com.wanderwildwood.amime.protocol.Sizes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -121,6 +123,10 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
             // Nothing new will appear until something is removed, and an app that says
             // nothing here looks exactly like an app on a mesh with nobody on it.
             _problem.value = say(R.string.problem_contacts_full)
+        }
+
+        override fun onChannelSetFailed(index: Int, code: Int) {
+            _problem.value = say(R.string.problem_channel_refused)
         }
 
         override fun onProtocolProblem(problem: Session.Problem) {
@@ -436,6 +442,41 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
         store.recordSent(person.prefix, text, now)
         session.sendMessage(prefix, text, now)
     }
+
+    /**
+     * Join a channel from what was typed: a name alone for a hashtag channel, a name and a
+     * key for a private one. Returns why not, as a line to show, or null once it has gone to
+     * the radio — which answers in a moment, and the channel appears when it does.
+     */
+    fun joinChannel(name: String, key: String): String? {
+        val join = Channels.join(name, key)
+        if (join !is Channels.Join.Ok) {
+            return say(
+                when (join) {
+                    Channels.Join.NameTooLong -> R.string.join_name_too_long
+                    Channels.Join.BadKey -> R.string.join_bad_key
+                    else -> R.string.join_no_name
+                },
+            )
+        }
+        val current = state.value
+        // Already held: nothing to write, and a second slot with the same key would only
+        // mean every message on it arrived under whichever slot the radio found first.
+        if (current.channels.any { it.secret == join.secret.toList() }) return null
+        val slot = current.freeChannelSlots.firstOrNull() ?: return say(R.string.join_no_room)
+        session.setChannel(slot, join.name, join.secret)
+        return null
+    }
+
+    /** Leave a channel. Its messages stay on this phone, as a forgotten contact's do. */
+    fun leaveChannel(channel: Channel) = session.leaveChannel(channel.index)
+
+    fun sendToChannel(channel: Channel, text: String, now: Long = System.currentTimeMillis() / 1000) {
+        store.recordChannelSent(channel.key, text, now)
+        session.sendChannelMessage(channel.index, text, now)
+    }
+
+    fun markRead(channel: Channel) = store.markRead(channel.key)
 
     /** Put away the last thing that went wrong, once it has been read. */
     fun dismissProblem() {
