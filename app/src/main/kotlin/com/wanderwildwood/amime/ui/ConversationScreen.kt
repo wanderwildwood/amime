@@ -132,7 +132,7 @@ fun ConversationScreen(
         },
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-            LazyColumnMMD(state = listState, modifier = Modifier.weight(1f).fillMaxWidth()) {
+            LazyColumnMMD(state = listState, modifier = Modifier.weight(1f).fillMaxWidth(), isScrollbarVisible = false) {
                 items(messages.size) { index ->
                     val message = messages[index]
                     // One item rather than two emissions, so that the offer stays on the

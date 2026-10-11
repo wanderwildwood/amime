@@ -114,7 +114,7 @@ fun PeopleScreen(
             if (channels.isEmpty() && state.people.isEmpty()) {
                 Empty(state, Modifier.weight(1f))
             } else {
-                LazyColumnMMD(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                LazyColumnMMD(modifier = Modifier.weight(1f).fillMaxWidth(), isScrollbarVisible = false) {
                     items(channels.size) { index ->
                         val channel = channels[index]
                         ChannelRow(

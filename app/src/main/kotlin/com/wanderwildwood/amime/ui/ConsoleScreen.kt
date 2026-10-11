@@ -109,6 +109,7 @@ fun ConsoleScreen(
                 LazyColumnMMD(
                     state = listState,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
+                    isScrollbarVisible = false,
                 ) {
                     items(admin.lines.size) { index -> Line(admin.lines[index]) }
                 }

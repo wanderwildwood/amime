@@ -112,7 +112,7 @@ fun RadiosScreen(
                     )
                 }
             } else {
-                LazyColumnMMD(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                LazyColumnMMD(modifier = Modifier.weight(1f).fillMaxWidth(), isScrollbarVisible = false) {
                     items(radios.size) { index ->
                         RadioRow(
                             radio = radios[index],
