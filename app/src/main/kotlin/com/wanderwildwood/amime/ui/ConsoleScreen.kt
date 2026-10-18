@@ -25,7 +25,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.mudita.mmd.components.buttons.OutlinedButtonMMD
-import com.mudita.mmd.components.lazy.LazyColumnMMD
 import com.mudita.mmd.components.text.TextMMD
 import com.mudita.mmd.components.text_field.TextFieldMMD
 import com.mudita.mmd.components.top_app_bar.TopAppBarMMD
@@ -56,10 +55,11 @@ fun ConsoleScreen(
 
     // A console reads from the bottom: the answer to what was just asked is the last line,
     // and a round trip over the mesh is slow enough that watching for it is the whole
-    // activity. Instant rather than animated, as everywhere on this panel.
+    // activity. Instant rather than animated, as everywhere on this panel. One past the last
+    // line is PagedColumn's blank tail, which it turns back into the last whole page.
     val listState = rememberLazyListState()
     LaunchedEffect(admin.lines.size) {
-        if (admin.lines.isNotEmpty()) listState.scrollToItem(admin.lines.lastIndex)
+        if (admin.lines.isNotEmpty()) listState.scrollToItem(admin.lines.size)
     }
 
     Scaffold(
@@ -106,10 +106,9 @@ fun ConsoleScreen(
                     )
                 }
             } else {
-                LazyColumnMMD(
+                PagedColumn(
                     state = listState,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
-                    isScrollbarVisible = false,
                 ) {
                     items(admin.lines.size) { index -> Line(admin.lines[index]) }
                 }

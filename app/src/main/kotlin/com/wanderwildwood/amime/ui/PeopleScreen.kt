@@ -30,7 +30,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.mudita.mmd.components.buttons.OutlinedButtonMMD
-import com.mudita.mmd.components.lazy.LazyColumnMMD
 import com.mudita.mmd.components.text.TextMMD
 import com.mudita.mmd.components.text_field.TextFieldMMD
 import com.mudita.mmd.components.top_app_bar.TopAppBarMMD
@@ -114,7 +113,7 @@ fun PeopleScreen(
             if (channels.isEmpty() && state.people.isEmpty()) {
                 Empty(state, Modifier.weight(1f))
             } else {
-                LazyColumnMMD(modifier = Modifier.weight(1f).fillMaxWidth(), isScrollbarVisible = false) {
+                PagedColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     items(channels.size) { index ->
                         val channel = channels[index]
                         ChannelRow(

@@ -19,7 +19,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.mudita.mmd.components.buttons.OutlinedButtonMMD
-import com.mudita.mmd.components.lazy.LazyColumnMMD
 import com.mudita.mmd.components.text.TextMMD
 import com.mudita.mmd.components.top_app_bar.TopAppBarMMD
 import com.wanderwildwood.amime.MeshViewModel
@@ -112,7 +111,7 @@ fun RadiosScreen(
                     )
                 }
             } else {
-                LazyColumnMMD(modifier = Modifier.weight(1f).fillMaxWidth(), isScrollbarVisible = false) {
+                PagedColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     items(radios.size) { index ->
                         RadioRow(
                             radio = radios[index],

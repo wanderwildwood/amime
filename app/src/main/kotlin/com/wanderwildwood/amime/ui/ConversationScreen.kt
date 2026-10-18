@@ -27,7 +27,6 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.mudita.mmd.components.buttons.OutlinedButtonMMD
-import com.mudita.mmd.components.lazy.LazyColumnMMD
 import com.mudita.mmd.components.text.TextMMD
 import com.mudita.mmd.components.text_field.TextFieldMMD
 import com.mudita.mmd.components.top_app_bar.TopAppBarMMD
@@ -114,8 +113,10 @@ fun ConversationScreen(
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
             // Instant, not animated: the panel redraws in full and a smooth scroll on E Ink
-            // is a smear with a battery cost.
-            listState.scrollToItem(messages.lastIndex)
+            // is a smear with a battery cost. One past the last message is PagedColumn's blank
+            // tail, which it turns back into the last whole page, so the newest message sits
+            // at the foot rather than alone at the top. A short list just stays as it is.
+            listState.scrollToItem(messages.size)
         }
     }
 
@@ -132,12 +133,11 @@ fun ConversationScreen(
         },
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-            LazyColumnMMD(state = listState, modifier = Modifier.weight(1f).fillMaxWidth(), isScrollbarVisible = false) {
+            PagedColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth()) {
                 items(messages.size) { index ->
                     val message = messages[index]
                     // One item rather than two emissions, so that the offer stays on the
-                    // same page as the message it is about — MMD's list turns pages by
-                    // counting items, not by measuring them.
+                    // same page as the message it is about.
                     Column {
                         MessageRow(message, channel)
                         if (sendAgain != null && message.id == unanswered?.id) {
