@@ -8,6 +8,7 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.pm.PackageManager
+import android.util.Log
 import androidx.annotation.StringRes
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
@@ -127,6 +128,12 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
 
         override fun onChannelSetFailed(index: Int, code: Int) {
             _problem.value = say(R.string.problem_channel_refused)
+        }
+
+        override fun onCliCommandDropped(from: List<Byte>) {
+            // Only that it happened: the command's text is someone else's and stays out of
+            // the log, the same as message text does.
+            if (BuildConfig.DEBUG) Log.i(TAG, "dropped a console command from another node")
         }
 
         override fun onProtocolProblem(problem: Session.Problem) {
@@ -497,6 +504,8 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private companion object {
+        const val TAG = "amime.mesh"
+
         /** What the firmware puts in front of a node's name when it advertises. */
         const val MESHCORE_PREFIX = "MeshCore-"
 

@@ -33,6 +33,8 @@ class SessionTest {
         var syncedSince: Long? = null
         var ready: Frame.SelfInfo? = null
         var deviceInfo: Frame.DeviceInfo? = null
+        val cliResponses = mutableListOf<String>()
+        val cliCommandsDropped = mutableListOf<List<Byte>>()
 
         override fun onDevice(info: Frame.DeviceInfo) { deviceInfo = info }
         override fun onReady(self: Frame.SelfInfo) { ready = self }
@@ -41,6 +43,8 @@ class SessionTest {
         override fun onContactsFull() { contactsFull++ }
         override fun onContactsSynced(since: Long) { syncedSince = since }
         override fun onMessage(message: Frame.MessageReceived) { messages += message }
+        override fun onCliResponse(from: List<Byte>, text: String) { cliResponses += text }
+        override fun onCliCommandDropped(from: List<Byte>) { cliCommandsDropped += from }
         override fun onSent(sent: Frame.Sent, awaitingAck: Boolean) { this.sent += sent to awaitingAck }
         override fun onDelivered(ackHash: Long, roundTripMs: Long) { delivered += ackHash }
         override fun onFailed(code: Int) { failures += code }
@@ -90,6 +94,35 @@ class SessionTest {
 
         session.start()
         assertEquals(null, session.self)
+    }
+
+    // ---- what is and is not a message ----
+
+    /**
+     * Firmware 1.18.0 passes on a console command from a contact it will not take commands
+     * from. Shown, it would sit in the conversation as if the person had typed "reboot".
+     */
+    @Test
+    fun `a console command from another node is dropped rather than shown`() {
+        session.start()
+        transport.clear()
+        session.onFrame(message("reboot", TxtType.CLI_COMMAND))
+
+        assertTrue(heard.messages.isEmpty())
+        assertTrue(heard.cliResponses.isEmpty())
+        assertEquals(listOf(List<Byte>(Sizes.PUB_KEY_PREFIX) { 0x22 }), heard.cliCommandsDropped)
+        assertEquals("the drain carries on past it", listOf(Cmd.SYNC_NEXT_MESSAGE), transport.opcodes())
+    }
+
+    @Test
+    fun `a console answer still goes to the console, and plain text to the conversation`() {
+        session.start()
+        session.onFrame(message("> 910.525", TxtType.CLI_DATA))
+        session.onFrame(message("hello"))
+
+        assertEquals(listOf("> 910.525"), heard.cliResponses)
+        assertEquals(listOf("hello"), heard.messages.map { it.text })
+        assertTrue(heard.cliCommandsDropped.isEmpty())
     }
 
     // ---- draining the queue ----
@@ -363,9 +396,9 @@ class SessionTest {
 
     private fun u32(value: Long) = ByteArray(4) { ((value shr (it * 8)) and 0xFF).toByte() }
 
-    private fun message(text: String) = bytes(
-        Resp.CONTACT_MSG_RECV_V3, 20, 0, 0, ByteArray(Sizes.PUB_KEY_PREFIX),
-        PATH_LEN_DIRECT, TxtType.PLAIN, u32(1), text,
+    private fun message(text: String, txtType: Int = TxtType.PLAIN) = bytes(
+        Resp.CONTACT_MSG_RECV_V3, 20, 0, 0, ByteArray(Sizes.PUB_KEY_PREFIX) { 0x22 },
+        PATH_LEN_DIRECT, txtType, u32(1), text,
     )
 
     private fun legacyMessage(text: String) = bytes(

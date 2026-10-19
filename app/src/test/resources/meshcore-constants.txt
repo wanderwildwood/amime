@@ -1,7 +1,7 @@
 # The companion protocol's numbers, read out of MeshCore rather than typed.
 # Written by tools/update-meshcore-constants.py — do not edit by hand.
 # Upstream: https://github.com/meshcore-dev/MeshCore
-# Commit:   e94125987ed87497e706a0b54d1e80c709343980 2026-09-20 10:26:16 +1200
+# Commit:   81dbae592ffad40b4212bc0b37e82b38da08f4bc 2026-10-15 19:42:40 +1100
 # Files:    examples/companion_radio/MyMesh.cpp, src/helpers/TxtDataHelpers.h, src/helpers/AdvertDataHelpers.h, src/helpers/ContactInfo.h, src/helpers/BaseChatMesh.h, src/MeshCore.h
 
 ADV_TYPE_CHAT=1
@@ -35,6 +35,7 @@ CMD_LOGOUT=29
 CMD_REBOOT=19
 CMD_REMOVE_CONTACT=15
 CMD_RESET_PATH=13
+CMD_RUN_CLI_COMMAND=66
 CMD_SEND_ANON_REQ=57
 CMD_SEND_BINARY_REQ=50
 CMD_SEND_CHANNEL_DATA=62
@@ -104,6 +105,7 @@ RESP_CODE_CHANNEL_DATA_RECV=27
 RESP_CODE_CHANNEL_INFO=18
 RESP_CODE_CHANNEL_MSG_RECV=8
 RESP_CODE_CHANNEL_MSG_RECV_V3=17
+RESP_CODE_CLI_REPLY=29
 RESP_CODE_CONTACT=3
 RESP_CODE_CONTACTS_START=2
 RESP_CODE_CONTACT_MSG_RECV=7
@@ -125,6 +127,7 @@ RESP_CODE_SIGNATURE=20
 RESP_CODE_SIGN_START=19
 RESP_CODE_STATS=24
 RESP_CODE_TUNING_PARAMS=23
+TXT_TYPE_CLI_COMMAND=3
 TXT_TYPE_CLI_DATA=1
 TXT_TYPE_PLAIN=0
 TXT_TYPE_SIGNED_PLAIN=2

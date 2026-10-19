@@ -47,6 +47,12 @@ object Cmd {
     const val SET_CHANNEL = 32
     const val SEND_TRACE_PATH = 36
     const val SET_DEVICE_PIN = 37
+
+    /**
+     * Run a line on the companion radio's own console (firmware 1.18.0 and later). Named so
+     * the table matches upstream; nothing here sends it.
+     */
+    const val RUN_CLI_COMMAND = 66
 }
 
 /** Replies. A frame that opens with one of these answers the command just sent. */
@@ -74,6 +80,9 @@ object Resp {
      * same queue as channel text, so the drain has to recognise one and keep going.
      */
     const val CHANNEL_DATA_RECV = 27
+
+    /** The answer to [Cmd.RUN_CLI_COMMAND]. Never asked for, so never expected. */
+    const val CLI_REPLY = 29
 }
 
 /**
@@ -114,6 +123,13 @@ object TxtType {
     const val PLAIN = 0
     const val CLI_DATA = 1
     const val SIGNED_PLAIN = 2
+
+    /**
+     * A console line another node sent to this radio, which the radio would not run because
+     * that contact is not allowed to. It is a command, not something a person said, so it is
+     * not shown as a message.
+     */
+    const val CLI_COMMAND = 3
 }
 
 /** What a node's advert says it is. A repeater and a person are told apart only by this. */
@@ -159,7 +175,9 @@ object Sizes {
 /**
  * The protocol version this app claims to understand, sent in [Cmd.DEVICE_QUERY].
  *
- * 13 is the firmware version code shared by 1.16.0 through 1.17.1, which covers the node here.
+ * 13 is the firmware version code shared by 1.16.0 through 1.17.1. 1.18.0 reports 14, and
+ * what it added — running a line on the radio's console and the reply to it — is nothing this
+ * app uses, so 13 works with 1.16.0 through 1.18.0.
  */
 const val APP_PROTOCOL_VERSION = 13
 

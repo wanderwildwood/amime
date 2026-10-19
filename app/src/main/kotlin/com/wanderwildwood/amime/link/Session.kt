@@ -59,6 +59,13 @@ class Session(
          */
         fun onCliResponse(from: List<Byte>, text: String) {}
 
+        /**
+         * Another node sent this radio a console command, which the radio declined to run
+         * and passed on instead (`onCLICommandRecv` in `MyMesh.cpp`, firmware 1.18.0 on). It
+         * is dropped here rather than shown, and this is only so it can be logged.
+         */
+        fun onCliCommandDropped(from: List<Byte>) {}
+
         /** A repeater or room server let us in. */
         fun onLoggedIn(login: Frame.LoginSucceeded) {}
 
@@ -452,10 +459,13 @@ class Session(
 
             is Frame.MessageReceived -> {
                 if (frame.snr.isNaN()) listener.onProtocolProblem(Problem.HANDSHAKE_SKIPPED)
-                if (frame.txtType == TxtType.CLI_DATA) {
-                    listener.onCliResponse(frame.senderPrefix.toList(), frame.text)
-                } else {
-                    listener.onMessage(frame)
+                when (frame.txtType) {
+                    TxtType.CLI_DATA ->
+                        listener.onCliResponse(frame.senderPrefix.toList(), frame.text)
+                    // Someone asking this radio to run a command is not someone saying
+                    // something, and in a conversation it would read as if they had.
+                    TxtType.CLI_COMMAND -> listener.onCliCommandDropped(frame.senderPrefix.toList())
+                    else -> listener.onMessage(frame)
                 }
                 // Keep pulling until the radio says the queue is empty. A message can also
                 // arrive without a preceding tickle, so this starts the drain either way.
