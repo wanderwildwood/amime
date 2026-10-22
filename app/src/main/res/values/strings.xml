@@ -118,11 +118,12 @@
     <string name="about">About</string>
     <!-- %1$s is the version, as 0.1.0. -->
     <string name="about_version">Mesh %1$s</string>
-    <string name="about_what">A companion for a MeshCore radio. Messages go over Bluetooth to the radio beside you and out through the mesh.</string>
+    <string name="about_what">A companion for a MeshCore or Meshtastic radio. Messages go over Bluetooth to the radio beside you and out through the mesh.</string>
     <string name="about_reach">Nothing here touches the internet. There is no account, no server and no carrier — only the radio, and whatever it can reach.</string>
     <string name="about_while_closed">Messages that arrive while this is closed wait on the radio and appear when you open it. Nothing here runs in the background, and nothing interrupts you.</string>
     <string name="about_licence">GNU General Public License v3 only</string>
     <string name="about_meshcore">MeshCore\'s protocol, implemented from reading its source. MeshCore itself is MIT and none of it is copied here.</string>
+    <string name="about_meshtastic">Meshtastic\'s protocol definitions, unchanged, GPL-3.0, © Meshtastic LLC. The radio does the encryption.</string>
     <string name="about_icons">Icons from Material Symbols, Apache 2.0</string>
     <string name="about_llama">feed the llamas</string>
     <string name="about_no_browser">There is no browser on this phone to open that with.</string>
