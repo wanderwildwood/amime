@@ -552,7 +552,7 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
 
     // ---- Meshtastic ----
 
-    private val mtTransport = MeshtasticBle(
+    private val mtTransport: MeshtasticBle = MeshtasticBle(
         context = application,
         listener = object : MeshtasticBle.Listener {
             override fun onReady() {
@@ -594,7 +594,7 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
 
     private var lastDevice: BluetoothDevice? = null
 
-    private val mtListener = object : MtSession.Listener {
+    private val mtListener: MtSession.Listener = object : MtSession.Listener {
         override fun onReady(name: String, firmware: String) {
             store.mtReady(name)
             (typedPosition ?: radioPosition)?.let(store::mtHere)

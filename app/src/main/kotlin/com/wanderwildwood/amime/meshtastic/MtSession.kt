@@ -306,10 +306,13 @@ class MtSession(
                 if (d.request_id == 0) return
                 val routing = runCatching { Routing.ADAPTER.decode(d.payload) }.getOrNull() ?: return
                 val error = routing.error_reason?.value ?: 0
-                val expected = pending.remove(d.request_id)
+                val expected = pending[d.request_id]
                 // An acknowledgement from anyone but the destination is a repeater saying it
-                // took the message on, which is not the same as it arriving.
-                listener.onAck(d.request_id, expected == null || expected == from, error)
+                // took the message on, which is not the same as it arriving, so it keeps
+                // waiting. A refusal is final whoever says it.
+                val fromDestination = expected == null || expected == from
+                if (fromDestination || error != 0) pending.remove(d.request_id)
+                listener.onAck(d.request_id, fromDestination, error)
             }
 
             else -> Unit

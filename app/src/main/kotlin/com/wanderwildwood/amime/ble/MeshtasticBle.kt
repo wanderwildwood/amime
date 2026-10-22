@@ -57,7 +57,7 @@ class MeshtasticBle(
     private val handler = Handler(Looper.getMainLooper())
     private var bondReceiver: BroadcastReceiver? = null
 
-    private val queue = OperationQueue(
+    private val queue: OperationQueue = OperationQueue(
         onStartFailed = { fail(R.string.ble_refused) },
         onStarted = { attempt ->
             handler.postDelayed(
