@@ -1,0 +1,8 @@
+The .proto files in this directory are the Meshtastic protocol definitions, unchanged,
+from https://github.com/meshtastic/protobufs at tag v2.8.1 (commit 8017acbb0828703e980323bee3dd605fb7366058).
+Copyright Meshtastic LLC. Licensed under the GNU General Public License, version 3
+(see LICENSE-protobufs in this directory). nanopb.proto is from the nanopb project and is
+carried in the same repository.
+
+Kotlin code generated from them at build time uses the Wire runtime and Okio, both
+Apache License 2.0 (https://github.com/square/wire, https://github.com/square/okio).

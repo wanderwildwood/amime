@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.wire)
 }
 
 android {
@@ -15,8 +16,8 @@ android {
         // The Kompakt runs Android 12 (API 31); nothing here needs anything newer.
         minSdk = 31
         targetSdk = 31
-        versionCode = 10
-        versionName = "0.1.9"
+        versionCode = 11
+        versionName = "0.2.0-mt"
     }
 
     // A real keystore in signing/ signs every build type when it is present, so the
@@ -89,7 +90,28 @@ android {
     }
 }
 
+// The Meshtastic protocol definitions are vendored under src/main/proto (see NOTICE there)
+// and compiled to Kotlin here. Only what the app sends and reads is kept; the rest of the
+// definitions are pruned away so the APK does not carry them.
+wire {
+    sourcePath {
+        srcDir("src/main/proto")
+    }
+    root(
+        "meshtastic.ToRadio",
+        "meshtastic.FromRadio",
+        "meshtastic.AdminMessage",
+        "meshtastic.Routing",
+        "meshtastic.Position",
+        "meshtastic.User",
+        "meshtastic.Telemetry",
+    )
+    kotlin {
+    }
+}
+
 dependencies {
+    implementation(libs.wire.runtime)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
