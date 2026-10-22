@@ -565,6 +565,8 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
 
             override fun onFromNum() = mtSession.onFromNum()
 
+            override fun onReadStalled(): Boolean = mtSession.onReadStalled()
+
             override fun onDisconnected() {
                 handshakeWatch?.cancel()
                 _connecting.value = null

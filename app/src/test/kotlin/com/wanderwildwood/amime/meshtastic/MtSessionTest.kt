@@ -411,4 +411,34 @@ class MtSessionTest {
             ),
         ),
     ).encode()
+
+    /** A transport whose reads never answer on their own: the test plays the callbacks. */
+    private class Silent : MtTransport {
+        var reads = 0
+        var writes = 0
+        override fun write(toRadio: ByteArray) { writes++ }
+        override fun read(delayMs: Long) { reads++ }
+    }
+
+    @Test
+    fun a_drain_left_over_from_a_dropped_link_does_not_block_the_next_connection() {
+        val t = Silent()
+        val session = MtSession(t, Events(), clock = { 5000 })
+        session.start()
+        assertEquals(1, t.reads) // the read that the dropped link never answered
+        session.start() // reconnect on the same session
+        assertEquals(2, t.reads)
+        assertEquals(2, t.writes)
+    }
+
+    @Test
+    fun a_read_that_never_called_back_is_asked_for_again_a_few_times() {
+        val t = Silent()
+        val session = MtSession(t, Events(), clock = { 5000 })
+        session.start()
+        repeat(3) { assertTrue(session.onReadStalled()) }
+        assertEquals(4, t.reads)
+        assertFalse(session.onReadStalled())
+        assertEquals(4, t.reads)
+    }
 }

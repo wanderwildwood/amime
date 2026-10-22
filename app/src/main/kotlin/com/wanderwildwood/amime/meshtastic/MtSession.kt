@@ -1,5 +1,6 @@
 package com.wanderwildwood.amime.meshtastic
 
+import android.util.Log
 import com.wanderwildwood.amime.link.RadioBackend
 import com.wanderwildwood.amime.link.RadioKind
 import okio.ByteString.Companion.encodeUtf8
@@ -118,6 +119,7 @@ class MtSession(
     private var draining = false
     private var again = false
     private var emptyReads = 0
+    private var stalls = 0
     private var nextId = if (firstPacketId == 0) 1 else firstPacketId
     private val nodes = mutableMapOf<Long, MtNode>()
     private val channels = mutableMapOf<Int, org.meshtastic.proto.Channel>()
@@ -129,15 +131,41 @@ class MtSession(
         ready = false
         channels.clear()
         emptyReads = 0
+        // A drain left over from a link that dropped mid-read never gets its callback; if the
+        // flag survived into this connection every drain() would see "already draining" and
+        // not read at all.
+        draining = false
+        again = false
+        stalls = 0
+        note("want_config sent")
         transport.write(ToRadio(want_config_id = configId).encode())
         drain()
     }
 
     /** FromNum changed: something is waiting. */
-    fun onFromNum() = drain()
+    fun onFromNum() {
+        note("FromNum notify (draining=$draining)")
+        drain()
+    }
+
+    /**
+     * A read was given up on because it never called back. Without this the loop would wait
+     * for an answer that is not coming, and every later notify would only set [again].
+     * Tries again a few times; returns false when it has given up.
+     */
+    fun onReadStalled(): Boolean {
+        note("read stalled (#${stalls + 1})")
+        draining = false
+        again = false
+        if (stalls >= MAX_STALLS) return false
+        stalls++
+        drain()
+        return true
+    }
 
     /** The answer to a [MtTransport.read]. */
     fun onRead(bytes: ByteArray) {
+        note("read: ${bytes.size} bytes, ready=$ready, empty=$emptyReads")
         if (bytes.isEmpty()) {
             if (!ready && emptyReads < MAX_EMPTY_BEFORE_READY) {
                 // The firmware is still working through the handshake, or has not yet seen
@@ -154,9 +182,29 @@ class MtSession(
             return
         }
         emptyReads = 0
+        stalls = 0
         val message = runCatching { FromRadio.ADAPTER.decode(bytes) }.getOrNull()
-        if (message == null) listener.onMalformed() else handle(message)
+        if (message == null) listener.onMalformed() else {
+            note("frame: ${kindOf(message)}")
+            handle(message)
+        }
         transport.read(0)
+    }
+
+    /** Which part of a FromRadio is set: the type only, never what it carries. */
+    private fun kindOf(m: FromRadio): String = when {
+        m.my_info != null -> "my_info"
+        m.node_info != null -> "node_info"
+        m.channel != null -> "channel"
+        m.config != null -> "config"
+        m.metadata != null -> "metadata"
+        m.packet != null -> "packet"
+        m.config_complete_id != null -> "config_complete"
+        else -> "other"
+    }
+
+    private fun note(text: String) {
+        try { Log.i("MtBle", "session: $text") } catch (_: Throwable) { }
     }
 
     private fun drain() {
@@ -192,6 +240,7 @@ class MtSession(
         m.packet?.let(::handlePacket)
         m.config_complete_id?.let { id ->
             if (id == configId && !ready) {
+                note("config_complete")
                 ready = true
                 channels.values.sortedBy { it.index }.forEach(::emitChannel)
                 listener.onChannelsLoaded()
@@ -398,6 +447,7 @@ class MtSession(
         private const val MASK = 0xFFFFFFFFL
         private const val RETRY_MS = 250L
         private const val MAX_EMPTY_BEFORE_READY = 40
+        private const val MAX_STALLS = 3
 
         /** A node number as the four-byte key this app files a person under. */
         fun keyOf(num: Long): List<Byte> =
