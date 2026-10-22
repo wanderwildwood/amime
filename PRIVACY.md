@@ -7,6 +7,12 @@ That is the short version. The rest of this page is the evidence for it, and the
 less obvious: what a message does once it leaves the phone, which is not this app's doing and
 is worth understanding before you trust it with anything.
 
+## A position you type
+
+For distances to Meshtastic nodes Mesh uses the position the radio reports for itself, or one
+you type in. A typed position is kept on this phone and nowhere else, and can be replaced at
+any time. Mesh asks for no location permission and never reads the phone's location.
+
 ## Permissions
 
 `app/src/main/AndroidManifest.xml` declares two, and both are about talking to a radio over

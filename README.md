@@ -16,6 +16,24 @@ Not a fork. Written from scratch in Kotlin, on Mudita's own
 | ![Choosing a radio](screenshots/1-radios.png) | ![The radio, its battery, and who it knows](screenshots/2-people.png) |
 | ![A conversation through the mesh](screenshots/3-conversation.png) | ![Logging in to a repeater over the air](screenshots/4-repeater.png) |
 
+## Two kinds of radio
+
+Mesh talks to MeshCore radios and to Meshtastic radios. The scan names each one, and the
+Bluetooth service a radio offers decides which it is. MeshCore works as it always has.
+
+With a Meshtastic radio it lists the nodes the radio knows (last heard, battery, signal, hops,
+and how far away and in which direction when a position is known), shows the radio's channels
+(the default one as LongFast, or whichever preset the radio is on), and keeps channel and
+direct threads. It sends to a channel and to a node, shows whether a node acknowledged a
+direct message and says in words why one could not be delivered, and sets the radio's LoRa
+region. A node's row opens its thread, with an Open in maps link that hands the position to
+whatever maps app is installed; Mesh draws no map and asks for no location permission. For
+distances it uses the radio's own GPS fix, or a position you type in. The radio does all the
+encryption. Pairing is the system's: a Meshtastic radio with a screen shows the PIN on it.
+
+Meshtastic's protocol definitions are carried unchanged in `app/src/main/proto` (see the
+`NOTICE` there) and compiled with Square's Wire at build time.
+
 ## Where this is up to
 
 **Version 0.1.2.** The commands and frames are written against
@@ -191,4 +209,6 @@ app has stored.
 ## Licence
 
 GPL-3.0-only. MeshCore itself is MIT, and is not vendored here — only its protocol is
-implemented, from reading its source.
+implemented, from reading its source. The Meshtastic protocol definitions in
+`app/src/main/proto` are © Meshtastic LLC, GPL-3.0; the Wire runtime and Okio they are
+compiled against are Apache-2.0.
