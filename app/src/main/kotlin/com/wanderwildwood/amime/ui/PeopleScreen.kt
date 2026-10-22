@@ -35,6 +35,9 @@ import com.mudita.mmd.components.text_field.TextFieldMMD
 import com.mudita.mmd.components.top_app_bar.TopAppBarMMD
 import com.wanderwildwood.amime.R
 import com.wanderwildwood.amime.mesh.Channel
+import com.wanderwildwood.amime.link.RadioKind
+import com.wanderwildwood.amime.mesh.Geo
+import com.wanderwildwood.amime.mesh.GeoPoint
 import com.wanderwildwood.amime.mesh.MeshState
 import com.wanderwildwood.amime.mesh.Person
 
@@ -56,7 +59,10 @@ fun PeopleScreen(
     onAdminister: (Person, String) -> Unit,
     onAnnounce: () -> Unit,
     onDismissProblem: () -> Unit,
+    onRegion: () -> Unit = {},
+    onPosition: () -> Unit = {},
 ) {
+    val meshtastic = state.radio == RadioKind.MESHTASTIC
     var aboutOpen by remember { mutableStateOf(false) }
     var loginTo by remember { mutableStateOf<Person?>(null) }
     var announced by remember { mutableStateOf(false) }
@@ -106,6 +112,26 @@ fun PeopleScreen(
                 )
             }
 
+            if (meshtastic && state.ready) {
+                // A radio with no region does not transmit at all, so this comes first.
+                if (state.region == 0) {
+                    TextMMD(
+                        text = stringResource(R.string.mt_region_unset),
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.fillMaxWidth().clickable(onClick = onRegion)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                    )
+                }
+                if (state.here == null) {
+                    TextMMD(
+                        text = stringResource(R.string.mt_no_position),
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.fillMaxWidth().clickable(onClick = onPosition)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                    )
+                }
+            }
+
             // Channels first, then the way into another, then the people. One list, so the
             // panel turns pages over all of it the same way. Before the radio has answered
             // there are no channels, and the screen says why it is empty as it always has.
@@ -122,7 +148,7 @@ fun PeopleScreen(
                             onClick = { onOpenChannel(channel) },
                         )
                     }
-                    if (channels.isNotEmpty()) {
+                    if (channels.isNotEmpty() && !meshtastic) {
                         item {
                             JoinChannelRow(
                                 enabled = state.ready && state.channelsLoaded,
@@ -141,6 +167,8 @@ fun PeopleScreen(
                         val person = state.people[index]
                         PersonRow(
                             person = person,
+                            here = state.here.takeIf { meshtastic },
+                            meshtastic = meshtastic,
                             unread = state.unreadCount(person.prefix),
                             onClick = {
                                 when {
@@ -158,25 +186,43 @@ fun PeopleScreen(
             // Nothing else tells the mesh this radio exists. A companion node has no advert
             // timer — that is a repeater's job — so without a press here it can hear every
             // node in range and be in none of their contact lists.
-            if (announced) {
-                TextMMD(
-                    text = stringResource(R.string.people_announced),
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                )
-            }
-            OutlinedButtonMMD(
-                onClick = {
-                    onAnnounce()
-                    announced = true
-                },
-                enabled = state.ready,
-                modifier = Modifier.fillMaxWidth().padding(12.dp),
-            ) {
-                TextMMD(
-                    text = stringResource(R.string.people_announce),
-                    style = MaterialTheme.typography.titleSmall,
-                )
+            if (meshtastic) {
+                // Announcing is MeshCore's: a Meshtastic radio sends its own node info. Its
+                // place is taken by the one setting this radio needs before it will talk.
+                OutlinedButtonMMD(
+                    onClick = onRegion,
+                    enabled = state.ready,
+                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                ) {
+                    TextMMD(
+                        text = stringResource(
+                            R.string.mt_region_button,
+                            regionName(state.region),
+                        ),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                }
+            } else {
+                if (announced) {
+                    TextMMD(
+                        text = stringResource(R.string.people_announced),
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                    )
+                }
+                OutlinedButtonMMD(
+                    onClick = {
+                        onAnnounce()
+                        announced = true
+                    },
+                    enabled = state.ready,
+                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                ) {
+                    TextMMD(
+                        text = stringResource(R.string.people_announce),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                }
             }
         }
     }
@@ -298,7 +344,13 @@ private fun batteryLine(millivolts: Int): String = stringResource(
 )
 
 @Composable
-private fun PersonRow(person: Person, unread: Int, onClick: () -> Unit) {
+private fun PersonRow(
+    person: Person,
+    here: GeoPoint?,
+    meshtastic: Boolean,
+    unread: Int,
+    onClick: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -318,7 +370,12 @@ private fun PersonRow(person: Person, unread: Int, onClick: () -> Unit) {
             person.isSensor -> R.string.people_sensor
             else -> null
         }
-        if (kind != null) {
+        if (meshtastic) {
+            val line = meshtasticLine(person, here, unread)
+            if (line.isNotEmpty()) {
+                TextMMD(text = line, style = MaterialTheme.typography.labelSmall)
+            }
+        } else if (kind != null) {
             TextMMD(
                 text = stringResource(kind),
                 style = MaterialTheme.typography.labelSmall,
@@ -362,4 +419,74 @@ private fun Empty(state: MeshState, modifier: Modifier) {
         )
     }
 
+}
+
+/**
+ * What a Meshtastic radio knows about a node, on one line: when it was last heard, how far
+ * and which way, its battery, and how the signal came. Only the parts that are known.
+ */
+@Composable
+private fun meshtasticLine(person: Person, here: GeoPoint?, unread: Int): String {
+    val parts = mutableListOf<String>()
+    if (unread > 0) parts += pluralStringResource(R.plurals.people_unread, unread, unread)
+    if (person.lastHeard > 0) parts += heardAgo(System.currentTimeMillis() / 1000 - person.lastHeard)
+    awayText(here, person)?.let { parts += it }
+    person.battery?.let {
+        parts += if (it > 100) stringResource(R.string.mt_powered) else stringResource(R.string.mt_battery, it)
+    }
+    person.hops?.let {
+        parts += if (it == 0) stringResource(R.string.mt_direct) else pluralStringResource(R.plurals.mt_hops, it, it)
+    }
+    person.snr?.let { parts += stringResource(R.string.mt_snr, it) }
+    return parts.joinToString(" \u00b7 ")
+}
+
+@Composable
+fun awayText(here: GeoPoint?, person: Person): String? {
+    val lat = person.latitude ?: return null
+    val lon = person.longitude ?: return null
+    if (here == null) return null
+    return when (val away = Geo.away(here, GeoPoint(lat, lon))) {
+        Geo.Away.Under1 -> stringResource(R.string.mt_under_1_km)
+        is Geo.Away.Km -> stringResource(R.string.mt_away, away.km, away.direction)
+    }
+}
+
+@Composable
+private fun heardAgo(seconds: Long): String = when {
+    seconds < 60 -> stringResource(R.string.mt_age_now)
+    seconds < 3600 -> stringResource(R.string.mt_age_min, (seconds / 60).toInt())
+    seconds < 86400 -> stringResource(R.string.mt_age_hours, (seconds / 3600).toInt())
+    else -> stringResource(R.string.mt_age_days, (seconds / 86400).toInt())
+}
+
+/**
+ * Above a Meshtastic person's thread: how far and which way, and the way into a maps app.
+ * Opening the map is the system's job (a geo: link), so this app needs no location
+ * permission and draws no map.
+ */
+@Composable
+fun PersonHeader(person: Person, here: GeoPoint?) {
+    val lat = person.latitude ?: return
+    val lon = person.longitude ?: return
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val away = awayText(here, person)
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
+        if (away != null) TextMMD(text = away, style = MaterialTheme.typography.labelSmall)
+        TextMMD(
+            text = stringResource(R.string.mt_open_maps),
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier
+                .clickable {
+                    val uri = android.net.Uri.parse(Geo.geoUri(lat, lon, person.label))
+                    runCatching {
+                        context.startActivity(
+                            android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
+                                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                }
+                .padding(vertical = 10.dp),
+        )
+    }
 }

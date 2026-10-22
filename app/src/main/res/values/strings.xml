@@ -164,4 +164,55 @@
     <!-- %1$d is the Bluetooth stack\'s own number for what went wrong. -->
     <string name="ble_notifications_refused">Notifications could not be turned on (%1$d).</string>
     <string name="ble_write_failed">A frame was not written (%1$d).</string>
+
+    <!-- Meshtastic -->
+    <string name="ble_read_failed">The radio could not be read (%1$d).</string>
+    <string name="problem_mt_old">This radio runs Meshtastic %1$s, which is older than 2.5. Update its firmware to use it here.</string>
+    <string name="radio_kind_meshtastic">Meshtastic</string>
+    <string name="radio_kind_meshcore">MeshCore</string>
+    <string name="radios_pairing_mt">Pairing. A radio with a screen shows the PIN on it; one without uses %1$d.</string>
+    <string name="mt_region_unset">This radio has no region set, so it will not transmit. Tap to choose one.</string>
+    <string name="mt_no_position">No position for this radio yet. Tap to type yours, for distances.</string>
+    <string name="mt_region_button">Region: %1$s</string>
+    <string name="mt_region_title">Region</string>
+    <string name="mt_region_law">The region has to match the law where you are. The radio restarts after it is set.</string>
+    <string name="mt_region_confirm">Set the region to %1$s? The radio will restart.</string>
+    <string name="mt_region_set">Set</string>
+    <string name="mt_region_none">not set</string>
+    <string name="mt_region_us">United States</string>
+    <string name="mt_region_eu433">Europe 433 MHz</string>
+    <string name="mt_region_eu868">Europe 868 MHz</string>
+    <string name="mt_region_cn">China</string>
+    <string name="mt_region_jp">Japan</string>
+    <string name="mt_region_anz">Australia and New Zealand</string>
+    <string name="mt_region_kr">Korea</string>
+    <string name="mt_region_tw">Taiwan</string>
+    <string name="mt_region_ru">Russia</string>
+    <string name="mt_region_in">India</string>
+    <string name="mt_position_title">Where you are</string>
+    <string name="mt_position_help">Degrees, for example 35.5951 and -82.5515. Used only to work out distances; it stays on this phone.</string>
+    <string name="mt_position_lat">Latitude</string>
+    <string name="mt_position_lon">Longitude</string>
+    <string name="mt_open_maps">Open in maps</string>
+    <string name="mt_powered">powered</string>
+    <string name="mt_battery">%1$d%% battery</string>
+    <string name="mt_direct">direct</string>
+    <plurals name="mt_hops">
+        <item quantity="one">%1$d hop</item>
+        <item quantity="other">%1$d hops</item>
+    </plurals>
+    <string name="mt_snr">SNR %1$.1f</string>
+    <string name="mt_under_1_km">under 1 km</string>
+    <string name="mt_away">%1$d km %2$s</string>
+    <string name="mt_age_now">just now</string>
+    <string name="mt_age_min">%1$d min ago</string>
+    <string name="mt_age_hours">%1$d h ago</string>
+    <string name="mt_age_days">%1$d d ago</string>
+    <string name="mt_fail_no_route">No route to them.</string>
+    <string name="mt_fail_no_answer">The radio sent it several times and heard nothing back.</string>
+    <string name="mt_fail_no_channel">They do not share this channel.</string>
+    <string name="mt_fail_too_large">Too long for the radio to send.</string>
+    <string name="mt_fail_duty_cycle">The radio has reached its transmit limit for now.</string>
+    <string name="mt_fail_no_key">Their key is not known yet. Try again once they have been heard.</string>
+    <string name="mt_fail_rate">Sent too fast. Wait a moment.</string>
 </resources>

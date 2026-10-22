@@ -66,6 +66,8 @@ fun ConversationScreen(
     /** The most bytes the radio will carry for this thread. A channel spends some on the name. */
     maxBytes: Int = Sizes.MAX_TEXT,
     actions: @Composable RowScope.() -> Unit = {},
+    /** A line above the thread, or null. A Meshtastic person has how far away they are. */
+    header: (@Composable () -> Unit)? = null,
 ) {
     var draft by remember { mutableStateOf("") }
 
@@ -133,6 +135,7 @@ fun ConversationScreen(
         },
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+            header?.invoke()
             PagedColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth()) {
                 items(messages.size) { index ->
                     val message = messages[index]
@@ -261,6 +264,7 @@ private val Delivery.isSettled: Boolean
  */
 @Composable
 private fun Message.note(channel: Boolean): String? = when {
+    mine && delivery == Delivery.REFUSED && failure != null -> stringResource(routingFailureText(failure))
     mine && delivery == Delivery.REFUSED -> stringResource(R.string.message_refused)
     mine && delivery == Delivery.NO_ACK_EXPECTED ->
         stringResource(R.string.message_no_confirmation)
@@ -291,3 +295,19 @@ private const val WEAK_SNR = -10f
 
 /** How near the limit a message has to be before the screen starts counting, in bytes. */
 private const val NEARLY = 20
+
+/**
+ * A Meshtastic radio's reason for not delivering, in words. The numbers are Routing.Error:
+ * 1 no route, 5 retransmitted out, 6 no channel, 7 too large, 9 duty cycle, 35 and 39 the
+ * other node's key is not known yet, and so on.
+ */
+private fun routingFailureText(code: Int): Int = when (code) {
+    1 -> R.string.mt_fail_no_route
+    2, 3, 5 -> R.string.mt_fail_no_answer
+    6 -> R.string.mt_fail_no_channel
+    7 -> R.string.mt_fail_too_large
+    9 -> R.string.mt_fail_duty_cycle
+    34, 35, 39 -> R.string.mt_fail_no_key
+    38 -> R.string.mt_fail_rate
+    else -> R.string.message_refused
+}

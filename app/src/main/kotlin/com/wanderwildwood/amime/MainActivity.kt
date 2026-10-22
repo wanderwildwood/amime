@@ -15,7 +15,12 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mudita.mmd.ThemeMMD
+import com.wanderwildwood.amime.link.RadioKind
+import com.wanderwildwood.amime.mesh.GeoPoint
 import com.wanderwildwood.amime.mesh.Person
+import com.wanderwildwood.amime.ui.PersonHeader
+import com.wanderwildwood.amime.ui.PositionDialog
+import com.wanderwildwood.amime.ui.RegionScreen
 import com.wanderwildwood.amime.protocol.Sizes
 import com.wanderwildwood.amime.ui.LeaveChannelAction
 import com.wanderwildwood.amime.ui.ConsoleScreen
@@ -79,6 +84,30 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
         return
     }
 
+    var regionOpen by remember { mutableStateOf(false) }
+    var positionOpen by remember { mutableStateOf(false) }
+    val meshtastic = state.radio == RadioKind.MESHTASTIC
+    if (regionOpen && meshtastic) {
+        RegionScreen(
+            current = state.region,
+            onChoose = {
+                regionOpen = false
+                viewModel.setRegion(it)
+            },
+            onClose = { regionOpen = false },
+        )
+        return
+    }
+    if (positionOpen) {
+        PositionDialog(
+            onDismiss = { positionOpen = false },
+            onSet = { lat, lon ->
+                positionOpen = false
+                viewModel.setTypedPosition(GeoPoint(lat, lon))
+            },
+        )
+    }
+
     val person = open
     val channel = openChannelKey?.let(state::channel)
     if (channel != null) {
@@ -93,13 +122,13 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
             channel = true,
             // The radio puts "name: " in front and cuts the whole at the limit without a word,
             // so the room for the words is what the name leaves.
-            maxBytes = Sizes.MAX_TEXT - ((state.nodeName ?: "") + ": ").toByteArray().size,
+            maxBytes = if (meshtastic) MT_TEXT_BYTES else Sizes.MAX_TEXT - ((state.nodeName ?: "") + ": ").toByteArray().size,
             onSend = { viewModel.sendToChannel(channel, it) },
             onBack = closeChannel,
             actions = {
                 // Public is every radio's from the start, and the one place a stranger can be
                 // heard; it stays.
-                if (!channel.isPublic && state.ready) {
+                if (!meshtastic && !channel.isPublic && state.ready) {
                     LeaveChannelAction {
                         viewModel.leaveChannel(channel)
                         closeChannel()
@@ -132,6 +161,12 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
             },
             onSendAgain = { viewModel.sendAgain(current, it) },
             onSend = { viewModel.send(person, it) },
+            maxBytes = if (meshtastic) MT_DIRECT_BYTES else Sizes.MAX_TEXT,
+            header = if (meshtastic) {
+                { PersonHeader(current, state.here) }
+            } else {
+                null
+            },
             onBack = {
                 // Anything that arrived while it was open was read as it landed.
                 viewModel.markRead(person)
@@ -154,6 +189,14 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
             onAdminister = viewModel::beginAdmin,
             onAnnounce = viewModel::announce,
             onDismissProblem = viewModel::dismissProblem,
+            onRegion = { regionOpen = true },
+            onPosition = { positionOpen = true },
         )
     }
 }
+
+/** What a text can hold on a channel: the 233-byte payload less the framing, 228 bytes of words. */
+private const val MT_TEXT_BYTES = 228
+
+/** Direct messages are encrypted to the recipient, which costs another 12 bytes. */
+private const val MT_DIRECT_BYTES = 216

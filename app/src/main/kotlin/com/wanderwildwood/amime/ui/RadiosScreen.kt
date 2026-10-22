@@ -24,6 +24,7 @@ import com.mudita.mmd.components.top_app_bar.TopAppBarMMD
 import com.wanderwildwood.amime.MeshViewModel
 import com.wanderwildwood.amime.R
 import com.wanderwildwood.amime.ble.NordicUart
+import com.wanderwildwood.amime.link.RadioKind
 
 /**
  * Choosing a radio.
@@ -86,7 +87,11 @@ fun RadiosScreen(
             }
             if (pairing) {
                 TextMMD(
-                    text = stringResource(R.string.radios_pairing, NordicUart.DEFAULT_PIN),
+                    text = if (radios.firstOrNull { it.name == connecting }?.kind == RadioKind.MESHTASTIC) {
+                        stringResource(R.string.radios_pairing_mt, MT_FIXED_PIN)
+                    } else {
+                        stringResource(R.string.radios_pairing, NordicUart.DEFAULT_PIN)
+                    },
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
                 )
@@ -155,6 +160,12 @@ private fun RadioRow(radio: MeshViewModel.Radio, enabled: Boolean, onClick: () -
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
         TextMMD(text = radio.name, style = MaterialTheme.typography.bodyMedium)
+        TextMMD(
+            text = stringResource(
+                if (radio.kind == RadioKind.MESHTASTIC) R.string.radio_kind_meshtastic else R.string.radio_kind_meshcore,
+            ),
+            style = MaterialTheme.typography.labelSmall,
+        )
         // The signal is worth a line here and nowhere else: it is the one number that says
         // whether the thing you are about to pair with is near enough to stay paired.
         radio.rssi?.let {
@@ -165,3 +176,6 @@ private fun RadioRow(radio: MeshViewModel.Radio, enabled: Boolean, onClick: () -
         }
     }
 }
+
+/** What a Meshtastic radio without a screen uses to pair. */
+private const val MT_FIXED_PIN = 123456
