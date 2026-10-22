@@ -14,6 +14,15 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.wanderwildwood.amime.ble.BleTransport
+import com.wanderwildwood.amime.ble.MeshtasticBle
+import com.wanderwildwood.amime.link.MeshCoreBackend
+import com.wanderwildwood.amime.link.RadioBackend
+import com.wanderwildwood.amime.link.RadioKind
+import com.wanderwildwood.amime.mesh.Delivery
+import com.wanderwildwood.amime.mesh.GeoPoint
+import com.wanderwildwood.amime.meshtastic.MtNode
+import com.wanderwildwood.amime.meshtastic.RadioKinds
+import com.wanderwildwood.amime.meshtastic.MtSession
 import com.wanderwildwood.amime.ble.RadioScanner
 import com.wanderwildwood.amime.link.Session
 import com.wanderwildwood.amime.mesh.Channel
@@ -22,6 +31,7 @@ import com.wanderwildwood.amime.mesh.MeshStore
 import com.wanderwildwood.amime.mesh.Message
 import com.wanderwildwood.amime.mesh.MessageLog
 import com.wanderwildwood.amime.mesh.Person
+import com.wanderwildwood.amime.protocol.AdvType
 import com.wanderwildwood.amime.protocol.Channels
 import com.wanderwildwood.amime.protocol.Sizes
 import kotlinx.coroutines.Dispatchers
@@ -149,6 +159,17 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
 
     private lateinit var session: Session
 
+    /** Whichever radio is connected; MeshCore until a Meshtastic one is. */
+    private lateinit var backend: RadioBackend
+    private var kind = RadioKind.MESHCORE
+    private val mtSession: MtSession by lazy { MtSession(mtTransport, mtListener) }
+
+    /** Meshtastic sends waiting on an acknowledgement: packet id to (thread, local id). */
+    private val outbox = mutableMapOf<Int, Pair<List<Byte>, Long>>()
+    private val names = mutableMapOf<Long, String>()
+    private var radioPosition: GeoPoint? = null
+    private var typedPosition: GeoPoint? = loadTypedPosition()
+
     private val transport = BleTransport(
         context = application,
         listener = object : BleTransport.Listener {
@@ -157,9 +178,7 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
                 // The link is up; whether the radio will talk over it is the next question,
                 // and it is a different one.
                 watchForHandshake()
-                session.start()
-                session.syncContacts()
-                session.refreshBattery()
+                backend.start()
                 watchBattery()
             }
 
@@ -190,6 +209,7 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         session = Session(transport, listener)
+        backend = MeshCoreBackend(session)
 
         // What survived the last time the process went away. The radio does not keep a copy:
         // a message it has handed over is a message it no longer has.
@@ -210,7 +230,8 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun say(@StringRes line: Int): String = getApplication<Application>().getString(line)
+    private fun say(@StringRes line: Int, vararg args: Any): String =
+        getApplication<Application>().getString(line, *args)
 
     /**
      * Whether the two Bluetooth permissions have actually been granted.
@@ -249,6 +270,7 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
         val name: String,
         val bonded: Boolean,
         val rssi: Int? = null,
+        val kind: RadioKind = RadioKind.MESHCORE,
     )
 
     /**
@@ -278,8 +300,8 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
 
         val bonded = runCatching {
             adapter?.bondedDevices.orEmpty()
-                .filter { it.name?.startsWith(MESHCORE_PREFIX) == true }
-                .map { Radio(it, it.name ?: it.address, bonded = true) }
+                .filter { RadioKinds.byName(it.name) != null }
+                .map { Radio(it, it.name ?: it.address, bonded = true, kind = RadioKinds.byName(it.name)!!) }
         }.getOrDefault(emptyList())
         _radios.value = bonded
 
@@ -298,7 +320,7 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
                         _problem.value = say(R.string.problem_scan_refused)
                 }
             },
-        ) { device, name, rssi ->
+        ) { device, name, rssi, radioKind ->
             if (_radios.value.any { it.device.address == device.address }) return@start
             _radios.value = _radios.value + Radio(
                 device = device,
@@ -306,6 +328,7 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
                 bonded = runCatching { device.bondState == BluetoothDevice.BOND_BONDED }
                     .getOrDefault(false),
                 rssi = rssi,
+                kind = radioKind,
             )
         }
     }
@@ -326,7 +349,16 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
         stopScanning()
         _problem.value = null
         _connecting.value = radio.name
-        transport.connect(radio.device)
+        kind = radio.kind
+        lastDevice = radio.device
+        if (kind == RadioKind.MESHTASTIC) {
+            backend = mtSession
+            names.clear()
+            mtTransport.connect(radio.device)
+        } else {
+            backend = MeshCoreBackend(session)
+            transport.connect(radio.device)
+        }
     }
 
     /**
@@ -347,6 +379,7 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
                 _connecting.value = null
                 _problem.value = say(R.string.problem_no_answer)
                 transport.disconnect()
+                mtTransport.disconnect()
             }
         }
     }
@@ -415,7 +448,7 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
             while (true) {
                 delay(BATTERY_INTERVAL_MS)
                 if (!state.value.ready) return@launch
-                session.refreshBattery()
+                if (kind == RadioKind.MESHCORE) session.refreshBattery()
             }
         }
     }
@@ -445,6 +478,13 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
     fun announce() = session.advertise(flood = true)
 
     fun send(person: Person, text: String, now: Long = System.currentTimeMillis() / 1000) {
+        if (kind == RadioKind.MESHTASTIC) {
+            val until = System.currentTimeMillis() + MT_ACK_WAIT_MS
+            val id = store.mtSent(person.prefix, text, now, Delivery.AWAITING_ACK, until)
+            val packet = mtSession.sendText(MtSession.numOf(person.prefix), 0, text)
+            outbox[packet] = person.prefix to id
+            return
+        }
         val prefix = person.prefix.toByteArray()
         store.recordSent(person.prefix, text, now)
         session.sendMessage(prefix, text, now)
@@ -479,6 +519,12 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
     fun leaveChannel(channel: Channel) = session.leaveChannel(channel.index)
 
     fun sendToChannel(channel: Channel, text: String, now: Long = System.currentTimeMillis() / 1000) {
+        if (kind == RadioKind.MESHTASTIC) {
+            // A channel has no acknowledgement; handed to the radio is as settled as it gets.
+            store.mtSent(channel.key, text, now, Delivery.SENT)
+            mtSession.sendChannel(channel.index, text, now)
+            return
+        }
         store.recordChannelSent(channel.key, text, now)
         session.sendChannelMessage(channel.index, text, now)
     }
@@ -496,6 +542,7 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
         batteryWatch?.cancel()
         scanner.stop()
         transport.disconnect()
+        mtTransport.disconnect()
         // The writer runs in this scope and the scope is about to be cancelled, so anything
         // that arrived in the last moment would go with it. A few kilobytes written on the
         // way out is the cheapest way to make the last message as safe as the rest.
@@ -503,8 +550,151 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
         super.onCleared()
     }
 
+    // ---- Meshtastic ----
+
+    private val mtTransport = MeshtasticBle(
+        context = application,
+        listener = object : MeshtasticBle.Listener {
+            override fun onReady() {
+                _pairing.value = false
+                watchForHandshake()
+                backend.start()
+            }
+
+            override fun onRead(bytes: ByteArray) = mtSession.onRead(bytes)
+
+            override fun onFromNum() = mtSession.onFromNum()
+
+            override fun onDisconnected() {
+                handshakeWatch?.cancel()
+                _connecting.value = null
+                store.onDisconnected()
+            }
+
+            override fun onPairingRequired() {
+                _pairing.value = true
+            }
+
+            override fun onError(message: String) {
+                _pairing.value = false
+                _connecting.value = null
+                handshakeWatch?.cancel()
+                _problem.value = message
+            }
+
+            override fun onOtherKind() {
+                // The service list is the final word: this one speaks MeshCore.
+                mtTransport.disconnect()
+                kind = RadioKind.MESHCORE
+                backend = MeshCoreBackend(session)
+                lastDevice?.let { transport.connect(it) }
+            }
+        },
+    )
+
+    private var lastDevice: BluetoothDevice? = null
+
+    private val mtListener = object : MtSession.Listener {
+        override fun onReady(name: String, firmware: String) {
+            store.mtReady(name)
+            (typedPosition ?: radioPosition)?.let(store::mtHere)
+        }
+
+        override fun onNode(node: MtNode) {
+            names[node.num] = node.label
+            store.mtNode(
+                Person(
+                    prefix = MtSession.keyOf(node.num),
+                    name = node.label,
+                    type = AdvType.CHAT,
+                    pathKnown = node.hops != null,
+                    lastHeard = node.lastHeard,
+                    battery = node.battery,
+                    snr = node.snr,
+                    hops = node.hops,
+                    latitude = node.latitude,
+                    longitude = node.longitude,
+                ),
+            )
+        }
+
+        override fun onSelfPosition(latitude: Double, longitude: Double) {
+            radioPosition = GeoPoint(latitude, longitude)
+            if (typedPosition == null) store.mtHere(radioPosition)
+        }
+
+        override fun onChannel(index: Int, name: String, enabled: Boolean, primary: Boolean) =
+            store.mtChannel(index, name, enabled)
+
+        override fun onChannelsLoaded() = store.mtChannelsLoaded()
+
+        override fun onRegion(region: Int) = store.mtRegion(region)
+
+        override fun onText(from: Long, channel: Int?, text: String, time: Long, snr: Float?, hops: Int?) {
+            if (channel == null) {
+                store.mtReceived(MtSession.keyOf(from), text, time, snr, hops?.let { it == 0 })
+            } else {
+                // A channel thread shows "name: words", so the sender's name goes in front.
+                val who = names[from] ?: "!%08x".format(from)
+                store.mtReceived(MtSession.channelKey(channel), "$who: $text", time, snr, hops?.let { it == 0 })
+            }
+        }
+
+        override fun onAck(packetId: Int, fromDestination: Boolean, error: Int) {
+            val (key, id) = outbox[packetId] ?: return
+            when {
+                error != 0 -> {
+                    outbox.remove(packetId)
+                    store.mtSettle(key, id, Delivery.REFUSED, failure = error)
+                }
+                fromDestination -> {
+                    outbox.remove(packetId)
+                    store.mtSettle(key, id, Delivery.ACKNOWLEDGED)
+                }
+                // A repeater took it on; the message keeps waiting for the recipient.
+            }
+        }
+
+        override fun onTooOld(firmware: String) {
+            store.mtTooOld(firmware)
+            _problem.value = say(R.string.problem_mt_old, firmware)
+        }
+
+        override fun onMalformed() {
+            _problem.value = say(R.string.problem_truncated)
+        }
+    }
+
+    /**
+     * Set the radio's region. Returns false when the radio has not yet reported its LoRa
+     * configuration. The node saves and restarts, which drops the link.
+     */
+    fun setRegion(code: Int): Boolean = mtSession.setRegion(code)
+
+    /** Where the user says they are, for distances when the radio has no fix of its own. */
+    fun setTypedPosition(point: GeoPoint?) {
+        typedPosition = point
+        getApplication<Application>().getSharedPreferences("position", Context.MODE_PRIVATE).edit().apply {
+            if (point == null) clear() else {
+                putString("lat", point.latitude.toString())
+                putString("lon", point.longitude.toString())
+            }
+        }.apply()
+        store.mtHere(point ?: radioPosition)
+    }
+
+    private fun loadTypedPosition(): GeoPoint? = runCatching {
+        val prefs = getApplication<Application>().getSharedPreferences("position", Context.MODE_PRIVATE)
+        val lat = prefs.getString("lat", null)?.toDouble()
+        val lon = prefs.getString("lon", null)?.toDouble()
+        if (lat != null && lon != null) GeoPoint(lat, lon) else null
+    }.getOrNull()
+
     private companion object {
         const val TAG = "amime.mesh"
+
+        /** How long a direct message may wait for its acknowledgement; the radio retries three times in that. */
+        const val MT_ACK_WAIT_MS = 120_000L
 
         /** What the firmware puts in front of a node's name when it advertises. */
         const val MESHCORE_PREFIX = "MeshCore-"

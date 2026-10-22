@@ -106,6 +106,8 @@ wire {
         "meshtastic.User",
         "meshtastic.Telemetry",
     )
+    // The nanopb options are for the firmware's C code, not for this one.
+    prune("NanoPBOptions")
     kotlin {
     }
 }

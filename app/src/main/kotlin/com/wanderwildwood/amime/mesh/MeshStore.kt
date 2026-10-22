@@ -1,5 +1,6 @@
 package com.wanderwildwood.amime.mesh
 
+import com.wanderwildwood.amime.link.RadioKind
 import com.wanderwildwood.amime.link.Session
 import com.wanderwildwood.amime.protocol.Frame
 
@@ -197,6 +198,8 @@ class MeshStore(
                 ready = false,
                 admin = null,
                 heard = Heard(),
+                region = null,
+                oldFirmware = null,
                 channels = emptyList(),
                 freeChannelSlots = emptyList(),
                 channelsLoaded = false,
@@ -216,6 +219,83 @@ class MeshStore(
     }
 
     fun endAdmin() = update { copy(admin = null) }
+
+    // ---- Meshtastic: the same state, filled without MeshCore's reply queues ----
+
+    /** A Meshtastic radio has finished its handshake. */
+    fun mtReady(name: String) = update {
+        copy(nodeName = name.ifBlank { null }, ready = true, radio = RadioKind.MESHTASTIC)
+    }
+
+    fun mtNode(person: Person) = update {
+        val existing = people.indexOfFirst { it.prefix == person.prefix }
+        copy(
+            people = if (existing >= 0) {
+                people.toMutableList().apply { this[existing] = person }
+            } else {
+                people + person
+            },
+        )
+    }
+
+    fun mtChannel(index: Int, name: String, enabled: Boolean) = update {
+        val others = channels.filterNot { it.index == index }
+        if (!enabled) {
+            copy(channels = others)
+        } else {
+            copy(channels = (others + Channel(index, name, com.wanderwildwood.amime.meshtastic.MtSession.channelKey(index))).sortedBy { it.index })
+        }
+    }
+
+    fun mtChannelsLoaded() = update { copy(channelsLoaded = true) }
+
+    fun mtRegion(region: Int) = update { copy(region = region, radio = RadioKind.MESHTASTIC) }
+
+    fun mtHere(point: GeoPoint?) = update { copy(here = point) }
+
+    fun mtTooOld(firmware: String) = update { copy(oldFirmware = firmware) }
+
+    /** A text off the air, filed under [key]: a person's four bytes or a channel's key. */
+    fun mtReceived(key: List<Byte>, text: String, time: Long, snr: Float?, direct: Boolean?) {
+        val received = Message(
+            id = nextMessageId++,
+            text = text,
+            mine = false,
+            timestamp = time,
+            delivery = Delivery.ACKNOWLEDGED,
+            snr = snr,
+            direct = direct,
+        )
+        update {
+            copy(conversations = conversations + (key to (conversations[key].orEmpty() + received)))
+        }
+    }
+
+    /** Record something this app sent, in [delivery] to begin with. Returns its local id. */
+    fun mtSent(key: List<Byte>, text: String, time: Long, delivery: Delivery, until: Long? = null): Long {
+        val id = nextMessageId++
+        val message = Message(
+            id = id, text = text, mine = true, timestamp = time,
+            delivery = delivery, awaitingUntil = until,
+        )
+        update {
+            copy(conversations = conversations + (key to (conversations[key].orEmpty() + message)))
+        }
+        return id
+    }
+
+    /** Move a sent message to a new state, if it is still there. */
+    fun mtSettle(key: List<Byte>, id: Long, delivery: Delivery, failure: Int? = null) {
+        setDelivery(key to id, delivery)
+        if (failure != null) {
+            update {
+                val thread = conversations[key] ?: return@update this
+                copy(conversations = conversations + (key to thread.map {
+                    if (it.id == id) it.copy(failure = failure) else it
+                }))
+            }
+        }
+    }
 
     // ---- what the radio says ----
 

@@ -1,5 +1,6 @@
 package com.wanderwildwood.amime.mesh
 
+import com.wanderwildwood.amime.link.RadioKind
 import com.wanderwildwood.amime.protocol.AdvType
 import com.wanderwildwood.amime.protocol.Channels
 
@@ -30,6 +31,14 @@ data class Person(
      */
     val pathKnown: Boolean,
     val lastHeard: Long,
+    // The rest is what a Meshtastic radio reports about a node and MeshCore does not.
+    /** Battery, 0..100, or 101 when powered from outside. */
+    val battery: Int? = null,
+    val snr: Float? = null,
+    /** Hops the last packet took, where the radio could tell. */
+    val hops: Int? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
 ) {
     /**
      * What to show when a node has advertised no name.
@@ -151,6 +160,8 @@ data class Message(
      * attempts across a restart would be counting something nobody is waiting on.
      */
     val attempt: Int = 0,
+    /** Why a Meshtastic radio could not deliver it: a Routing.Error value, null when not said. */
+    val failure: Int? = null,
 )
 
 data class Conversation(
@@ -191,6 +202,14 @@ data class MeshState(
      * one, and joining could write over a channel nobody had read yet.
      */
     val channelsLoaded: Boolean = false,
+    /** Which kind of radio this is, once connected. */
+    val radio: RadioKind = RadioKind.MESHCORE,
+    /** A Meshtastic radio's LoRa region (enum value), 0 until one is chosen, null before it has said. */
+    val region: Int? = null,
+    /** This radio's own fix, when a Meshtastic radio has one, or the position typed in Settings. */
+    val here: GeoPoint? = null,
+    /** Set when the firmware is too old to be worked with. */
+    val oldFirmware: String? = null,
 ) {
     fun channel(key: List<Byte>): Channel? = channels.firstOrNull { it.key == key }
 
@@ -253,3 +272,6 @@ data class Admin(
         REFUSED,
     }
 }
+
+/** A place, in degrees. */
+data class GeoPoint(val latitude: Double, val longitude: Double)
