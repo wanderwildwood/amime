@@ -162,6 +162,7 @@
     </plurals>
     <string name="ble_no_cccd">The radio has nowhere to be asked for notifications, so it will stay silent.</string>
     <!-- %1$d is the Bluetooth stack\'s own number for what went wrong. -->
+    <string name="ble_forget_radio">Forget this radio in the phone\'s Bluetooth settings, then connect again.</string>
     <string name="ble_notifications_refused">Notifications could not be turned on (%1$d).</string>
     <string name="ble_write_failed">A frame was not written (%1$d).</string>
 

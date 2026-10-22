@@ -13,6 +13,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import androidx.annotation.StringRes
 import com.wanderwildwood.amime.R
 import com.wanderwildwood.amime.meshtastic.MtTransport
@@ -56,6 +57,9 @@ class MeshtasticBle(
     private var fromRadio: BluetoothGattCharacteristic? = null
     private val handler = Handler(Looper.getMainLooper())
     private var bondReceiver: BroadcastReceiver? = null
+    private var device: BluetoothDevice? = null
+    private var retriesUsed = 0
+    private var reconnecting = false
 
     private val queue: OperationQueue = OperationQueue(
         onStartFailed = { fail(R.string.ble_refused) },
@@ -68,6 +72,9 @@ class MeshtasticBle(
     )
 
     fun connect(device: BluetoothDevice) {
+        this.device = device
+        retriesUsed = 0
+        reconnecting = false
         if (device.bondState == BluetoothDevice.BOND_BONDED) {
             openGatt(device)
         } else {
@@ -83,6 +90,7 @@ class MeshtasticBle(
         queue.clear()
         toRadio = null
         fromRadio = null
+        reconnecting = false
         gatt?.let {
             it.disconnect()
             it.close()
@@ -161,6 +169,12 @@ class MeshtasticBle(
                     fromRadio = null
                     gatt.close()
                     if (this@MeshtasticBle.gatt === gatt) this@MeshtasticBle.gatt = null
+                    val again = device
+                    if (reconnecting && again != null) {
+                        reconnecting = false
+                        openGatt(again)
+                        return
+                    }
                     if (!linked) fail(R.string.ble_could_not_connect, status)
                     linked = false
                     listener.onDisconnected()
@@ -170,7 +184,7 @@ class MeshtasticBle(
 
         override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
             queue.completeCurrent()
-            gatt.discoverServices()
+            discoverFresh(gatt)
         }
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
@@ -178,14 +192,14 @@ class MeshtasticBle(
             val service = gatt.getService(MtUuids.SERVICE)
             if (service == null) {
                 if (gatt.getService(NordicUart.SERVICE) != null) listener.onOtherKind()
-                else fail(R.string.ble_no_service)
+                else if (!retryStale(gatt, null)) failStale(R.string.ble_no_service)
                 return
             }
             toRadio = service.getCharacteristic(MtUuids.TO_RADIO)
             fromRadio = service.getCharacteristic(MtUuids.FROM_RADIO)
             val fromNum = service.getCharacteristic(MtUuids.FROM_NUM)
             if (toRadio == null || fromRadio == null || fromNum == null) {
-                fail(R.string.ble_missing_characteristic)
+                if (!retryStale(gatt, null)) failStale(R.string.ble_missing_characteristic)
                 return
             }
             gatt.setCharacteristicNotification(fromNum, true)
@@ -207,7 +221,13 @@ class MeshtasticBle(
             queue.completeCurrent()
             if (descriptor.uuid != NordicUart.CCCD) return
             if (status == BluetoothGatt.GATT_SUCCESS) listener.onReady()
-            else fail(R.string.ble_notifications_refused, status)
+            else if (!retryStale(gatt, status)) {
+                if (GattCachePolicy.decide(status, retriesUsed) == GattCachePolicy.Verdict.GIVE_UP_WITH_HINT) {
+                    failStale(R.string.ble_notifications_refused, status)
+                } else {
+                    fail(R.string.ble_notifications_refused, status)
+                }
+            }
         }
 
         @Suppress("DEPRECATION") // The API 33 overload that passes the value does not exist here.
@@ -231,11 +251,45 @@ class MeshtasticBle(
         }
     }
 
+    /** Drops the phone's cached service list, then asks for a fresh one. */
+    private fun discoverFresh(gatt: BluetoothGatt) {
+        refreshCache(gatt)
+        handler.postDelayed({ if (this.gatt === gatt) gatt.discoverServices() }, REFRESH_WAIT_MS)
+    }
+
+    /** True when a refresh-and-reconnect was started; the caller then stops. */
+    private fun retryStale(gatt: BluetoothGatt, status: Int?): Boolean {
+        if (GattCachePolicy.decide(status, retriesUsed) != GattCachePolicy.Verdict.RETRY) return false
+        if (device == null) return false
+        retriesUsed++
+        queue.clear()
+        refreshCache(gatt)
+        reconnecting = true
+        gatt.disconnect()
+        return true
+    }
+
+    /** The hidden BluetoothGatt.refresh(): unsupported API, so a failure is only logged. */
+    private fun refreshCache(gatt: BluetoothGatt) {
+        try {
+            val ok = gatt.javaClass.getMethod("refresh").invoke(gatt)
+            Log.i(TAG, "GATT cache refresh: $ok")
+        } catch (e: Exception) {
+            Log.w(TAG, "GATT cache refresh unavailable", e)
+        }
+    }
+
+    private fun failStale(@StringRes reason: Int, vararg values: Any) {
+        listener.onError(context.getString(reason, *values) + "\n" + context.getString(R.string.ble_forget_radio))
+    }
+
     private fun fail(@StringRes reason: Int, vararg values: Any) {
         listener.onError(context.getString(reason, *values))
     }
 
     private companion object {
         const val PATIENCE_MS = 10_000L
+        const val REFRESH_WAIT_MS = 600L
+        const val TAG = "MeshtasticBle"
     }
 }
