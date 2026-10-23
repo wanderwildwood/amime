@@ -20,7 +20,16 @@ import com.wanderwildwood.amime.mesh.GeoPoint
 import com.wanderwildwood.amime.mesh.Person
 import com.wanderwildwood.amime.ui.PersonHeader
 import com.wanderwildwood.amime.ui.PositionDialog
+import com.wanderwildwood.amime.ui.ChannelEditScreen
+import com.wanderwildwood.amime.ui.ChannelImportScreen
+import com.wanderwildwood.amime.ui.ChannelQrScreen
+import com.wanderwildwood.amime.ui.ChannelsScreen
+import com.wanderwildwood.amime.ui.PasteLinkDialog
+import com.wanderwildwood.amime.ui.RadioSettingsScreen
 import com.wanderwildwood.amime.ui.RegionScreen
+import com.wanderwildwood.amime.ui.regionName
+import com.wanderwildwood.amime.meshtastic.ImportPlan
+import com.wanderwildwood.amime.meshtastic.MtChannelInfo
 import com.wanderwildwood.amime.protocol.Sizes
 import com.wanderwildwood.amime.ui.LeaveChannelAction
 import com.wanderwildwood.amime.ui.ConsoleScreen
@@ -86,7 +95,139 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
 
     var regionOpen by remember { mutableStateOf(false) }
     var positionOpen by remember { mutableStateOf(false) }
+    var page by remember { mutableStateOf<MtPage?>(null) }
+    var channelNotice by remember { mutableStateOf<String?>(null) }
+    var pasting by remember { mutableStateOf(false) }
     val meshtastic = state.radio == RadioKind.MESHTASTIC
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val nearest by viewModel.nearestFirst.collectAsStateWithLifecycle()
+
+    // The link read, by pasting or by the Camera app, becomes a plan to look at before anything is sent.
+    val readLink: (String) -> Unit = { text ->
+        val plan = viewModel.planImport(text)
+        if (plan == null) {
+            channelNotice = context.getString(R.string.mtx_bad_link)
+        } else {
+            channelNotice = null
+            page = MtPage.Import(plan)
+        }
+    }
+    // The standard ZXing scan request, which the Camera app answers. Mesh holds no camera permission.
+    val scan = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val text = result.data?.getStringExtra("SCAN_RESULT")
+            if (text != null) readLink(text)
+        }
+    }
+    val startScan = {
+        val intent = android.content.Intent("com.google.zxing.client.android.SCAN")
+            .putExtra("SCAN_MODE", "QR_CODE_MODE")
+            .putExtra("PROMPT_MESSAGE", context.getString(R.string.mtx_scan_prompt))
+        try {
+            scan.launch(intent)
+        } catch (_: android.content.ActivityNotFoundException) {
+            channelNotice = context.getString(R.string.mtx_scan_none)
+        }
+    }
+
+    if (meshtastic && state.ready) {
+        val primaryName = state.mtConfigs?.lora?.modem_preset?.let { com.wanderwildwood.amime.meshtastic.MtSession.presetLabel(it) } ?: "LongFast"
+        when (val p = page) {
+            MtPage.Channels -> {
+                ChannelsScreen(
+                    channels = state.mtChannels,
+                    primaryName = primaryName,
+                    notice = channelNotice,
+                    onEdit = { channelNotice = null; page = MtPage.Edit(it) },
+                    onAdd = { channelNotice = null; page = MtPage.Edit(null) },
+                    onScan = startScan,
+                    onPaste = { pasting = true },
+                    onShow = { page = MtPage.Qr },
+                    onClose = { channelNotice = null; page = null },
+                )
+                if (pasting) {
+                    PasteLinkDialog(onDismiss = { pasting = false }, onRead = { pasting = false; readLink(it) })
+                }
+                return
+            }
+            is MtPage.Edit -> {
+                val free = state.mtChannels.firstOrNull { !it.enabled && it.index > 0 }?.index ?: -1
+                ChannelEditScreen(
+                    existing = p.channel,
+                    slot = p.channel?.index ?: free,
+                    primaryName = primaryName,
+                    newKey = viewModel::randomKey,
+                    onSave = { name, key, up, down ->
+                        val ok = if (p.channel == null) {
+                            key != null && viewModel.addChannel(name, key, up, down) >= 0
+                        } else {
+                            viewModel.saveChannel(p.channel.index, name, key, up, down)
+                        }
+                        channelNotice = context.getString(if (ok) R.string.mtx_saved else R.string.mtx_refused_save)
+                        page = MtPage.Channels
+                    },
+                    onDelete = {
+                        p.channel?.let { viewModel.deleteChannel(it.index) }
+                        channelNotice = context.getString(R.string.mtx_removed)
+                        page = MtPage.Channels
+                    },
+                    onClose = { page = MtPage.Channels },
+                )
+                return
+            }
+            is MtPage.Import -> {
+                ChannelImportScreen(
+                    plan = p.plan,
+                    regionName = regionName(p.plan.lora?.region?.value),
+                    onAdd = {
+                        val n = viewModel.applyImport(p.plan)
+                        channelNotice = context.getString(R.string.mtx_added, n)
+                        page = MtPage.Channels
+                    },
+                    onApplyRadio = {
+                        viewModel.applyLoraFrom(p.plan)
+                        channelNotice = context.getString(R.string.mtx_import_lora_sent)
+                        page = MtPage.Channels
+                    },
+                    onClose = { page = MtPage.Channels },
+                )
+                return
+            }
+            MtPage.Qr -> {
+                ChannelQrScreen(
+                    linkWith = viewModel.channelLink(true),
+                    linkWithout = viewModel.channelLink(false),
+                    onClose = { page = MtPage.Channels },
+                )
+                return
+            }
+            MtPage.Settings -> {
+                if (regionOpen) {
+                    RegionScreen(
+                        current = state.region,
+                        onChoose = {
+                            regionOpen = false
+                            viewModel.setRegion(it)
+                        },
+                        onClose = { regionOpen = false },
+                    )
+                } else {
+                    RadioSettingsScreen(
+                        configs = state.mtConfigs,
+                        regionLabel = regionName(state.region),
+                        typedPosition = viewModel.typedHere,
+                        onRegion = { regionOpen = true },
+                        onChange = viewModel::changeSetting,
+                        onFixedPosition = { viewModel.typedHere?.let(viewModel::setFixedPosition) ?: false },
+                        onClearFixed = viewModel::clearFixedPosition,
+                        onClose = { page = null },
+                    )
+                }
+                return
+            }
+            null -> Unit
+        }
+    }
     if (regionOpen && meshtastic) {
         RegionScreen(
             current = state.region,
@@ -191,6 +332,10 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
             onDismissProblem = viewModel::dismissProblem,
             onRegion = { regionOpen = true },
             onPosition = { positionOpen = true },
+            onChannels = { channelNotice = null; page = MtPage.Channels },
+            onSettings = { page = MtPage.Settings },
+            nearestFirst = nearest,
+            onNearestFirst = viewModel::toggleNearestFirst,
         )
     }
 }
@@ -200,3 +345,12 @@ private const val MT_TEXT_BYTES = 228
 
 /** Direct messages are encrypted to the recipient, which costs another 12 bytes. */
 private const val MT_DIRECT_BYTES = 216
+
+/** Which Meshtastic screen is open, when one is. */
+private sealed interface MtPage {
+    data object Channels : MtPage
+    data class Edit(val channel: MtChannelInfo?) : MtPage
+    data class Import(val plan: ImportPlan) : MtPage
+    data object Qr : MtPage
+    data object Settings : MtPage
+}

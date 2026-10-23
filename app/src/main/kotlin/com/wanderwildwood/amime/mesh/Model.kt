@@ -208,6 +208,10 @@ data class MeshState(
     val region: Int? = null,
     /** This radio's own fix, when a Meshtastic radio has one, or the position typed in Settings. */
     val here: GeoPoint? = null,
+    /** Every channel slot a Meshtastic radio has, disabled ones too; empty until it has said. */
+    val mtChannels: List<com.wanderwildwood.amime.meshtastic.MtChannelInfo> = emptyList(),
+    /** A Meshtastic radio's settings as last read or changed; null until it has said. */
+    val mtConfigs: com.wanderwildwood.amime.meshtastic.MtConfigs? = null,
     /** Set when the firmware is too old to be worked with. */
     val oldFirmware: String? = null,
 ) {

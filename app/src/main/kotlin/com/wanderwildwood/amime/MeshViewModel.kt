@@ -20,6 +20,13 @@ import com.wanderwildwood.amime.link.RadioBackend
 import com.wanderwildwood.amime.link.RadioKind
 import com.wanderwildwood.amime.mesh.Delivery
 import com.wanderwildwood.amime.mesh.GeoPoint
+import com.wanderwildwood.amime.meshtastic.ChannelKeys
+import com.wanderwildwood.amime.meshtastic.ChannelUrl
+import com.wanderwildwood.amime.meshtastic.Field
+import com.wanderwildwood.amime.meshtastic.ImportPlan
+import com.wanderwildwood.amime.meshtastic.MtChannelInfo
+import com.wanderwildwood.amime.meshtastic.MtConfigs
+import com.wanderwildwood.amime.meshtastic.MtFields
 import com.wanderwildwood.amime.meshtastic.MtNode
 import com.wanderwildwood.amime.meshtastic.RadioKinds
 import com.wanderwildwood.amime.meshtastic.MtSession
@@ -632,6 +639,10 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
 
         override fun onRegion(region: Int) = store.mtRegion(region)
 
+        override fun onChannelInfos(channels: List<MtChannelInfo>) = store.mtChannelInfos(channels)
+
+        override fun onSettings(configs: MtConfigs) = store.mtConfigs(configs)
+
         override fun onText(from: Long, channel: Int?, text: String, time: Long, snr: Float?, hops: Int?) {
             if (channel == null) {
                 store.mtReceived(MtSession.keyOf(from), text, time, snr, hops?.let { it == 0 })
@@ -672,6 +683,55 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
      * configuration. The node saves and restarts, which drops the link.
      */
     fun setRegion(code: Int): Boolean = mtSession.setRegion(code)
+
+    private val _nearestFirst = MutableStateFlow(
+        runCatching {
+            getApplication<Application>().getSharedPreferences("position", Context.MODE_PRIVATE).getBoolean("nearest_first", false)
+        }.getOrDefault(false),
+    )
+
+    /** Whether the people list puts the nearest first; off until asked. */
+    val nearestFirst: StateFlow<Boolean> = _nearestFirst
+
+    fun toggleNearestFirst() {
+        val on = !_nearestFirst.value
+        _nearestFirst.value = on
+        getApplication<Application>().getSharedPreferences("position", Context.MODE_PRIVATE).edit().putBoolean("nearest_first", on).apply()
+    }
+
+    // ---- Meshtastic channels and settings: each is a pass-through to the session ----
+
+    /** Change one setting; see [MtSession.change]. */
+    fun changeSetting(field: Field, value: Any): MtFields.Applied = mtSession.change(field, value)
+
+    fun saveChannel(index: Int, name: String, key: okio.ByteString?, uplink: Boolean, downlink: Boolean): Boolean =
+        mtSession.saveChannel(index, name, key, uplink, downlink)
+
+    /** Add a secondary channel in the first free slot; the slot, or -1. */
+    fun addChannel(name: String, key: okio.ByteString, uplink: Boolean, downlink: Boolean): Int =
+        mtSession.addChannel(name, key, uplink, downlink)
+
+    fun deleteChannel(index: Int): Boolean = mtSession.deleteChannel(index)
+
+    /** What a pasted or scanned link would do, or null when the text is not a channel link. */
+    fun planImport(text: String): ImportPlan? = ChannelUrl.parse(text)?.let(mtSession::planImport)
+
+    fun applyImport(plan: ImportPlan): Int = mtSession.applyImport(plan)
+
+    fun applyLoraFrom(plan: ImportPlan): Boolean = plan.lora?.let(mtSession::applyLoraFrom) ?: false
+
+    /** The link for this radio's channels, to draw as a QR code; null when none are read. */
+    fun channelLink(withRadioSettings: Boolean): String? =
+        mtSession.channelSet(withRadioSettings)?.let { ChannelUrl.encode(it, channelsOnly = !withRadioSettings) }
+
+    fun randomKey(): okio.ByteString = ChannelKeys.random()
+
+    fun setFixedPosition(point: GeoPoint): Boolean = mtSession.setFixedPosition(point.latitude, point.longitude)
+
+    fun clearFixedPosition(): Boolean = mtSession.clearFixedPosition()
+
+    /** The position typed in, if any (not the radio's own fix). */
+    val typedHere: GeoPoint? get() = typedPosition
 
     /** Where the user says they are, for distances when the radio has no fix of its own. */
     fun setTypedPosition(point: GeoPoint?) {

@@ -199,6 +199,8 @@ class MeshStore(
                 admin = null,
                 heard = Heard(),
                 region = null,
+                mtChannels = emptyList(),
+                mtConfigs = null,
                 oldFirmware = null,
                 channels = emptyList(),
                 freeChannelSlots = emptyList(),
@@ -248,6 +250,10 @@ class MeshStore(
     }
 
     fun mtChannelsLoaded() = update { copy(channelsLoaded = true) }
+
+    fun mtChannelInfos(list: List<com.wanderwildwood.amime.meshtastic.MtChannelInfo>) = update { copy(mtChannels = list) }
+
+    fun mtConfigs(configs: com.wanderwildwood.amime.meshtastic.MtConfigs) = update { copy(mtConfigs = configs) }
 
     fun mtRegion(region: Int) = update { copy(region = region, radio = RadioKind.MESHTASTIC) }
 

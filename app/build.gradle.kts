@@ -115,6 +115,8 @@ wire {
 
 dependencies {
     implementation(libs.wire.runtime)
+    // Draws a channel link as a QR code. Reading one is the Camera app's job, not this app's.
+    implementation(libs.zxing.core)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

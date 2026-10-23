@@ -61,6 +61,10 @@ fun PeopleScreen(
     onDismissProblem: () -> Unit,
     onRegion: () -> Unit = {},
     onPosition: () -> Unit = {},
+    onChannels: () -> Unit = {},
+    onSettings: () -> Unit = {},
+    nearestFirst: Boolean = false,
+    onNearestFirst: () -> Unit = {},
 ) {
     val meshtastic = state.radio == RadioKind.MESHTASTIC
     var aboutOpen by remember { mutableStateOf(false) }
@@ -163,8 +167,26 @@ fun PeopleScreen(
                             Empty(state, Modifier.padding(vertical = 24.dp))
                         }
                     }
-                    items(state.people.size) { index ->
-                        val person = state.people[index]
+                    // A toggle for the order, only where there is a place to measure from.
+                    if (meshtastic && state.here != null && state.people.size > 1) {
+                        item {
+                            BorderedRow(
+                                stringResource(
+                                    R.string.mts_sort_nearest,
+                                    stringResource(if (nearestFirst) R.string.mtx_on else R.string.mtx_off),
+                                ),
+                                null,
+                                onClick = onNearestFirst,
+                            )
+                        }
+                    }
+                    val ordered = if (nearestFirst && meshtastic && state.here != null) {
+                        Geo.nearestFirst(state.here, state.people)
+                    } else {
+                        state.people
+                    }
+                    items(ordered.size) { index ->
+                        val person = ordered[index]
                         PersonRow(
                             person = person,
                             here = state.here.takeIf { meshtastic },
@@ -189,18 +211,24 @@ fun PeopleScreen(
             if (meshtastic) {
                 // Announcing is MeshCore's: a Meshtastic radio sends its own node info. Its
                 // place is taken by the one setting this radio needs before it will talk.
-                OutlinedButtonMMD(
-                    onClick = onRegion,
-                    enabled = state.ready,
+                Row(
                     modifier = Modifier.fillMaxWidth().padding(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    TextMMD(
-                        text = stringResource(
-                            R.string.mt_region_button,
-                            regionName(state.region),
-                        ),
-                        style = MaterialTheme.typography.titleSmall,
-                    )
+                    OutlinedButtonMMD(
+                        onClick = onChannels,
+                        enabled = state.ready,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        TextMMD(text = stringResource(R.string.mtx_channels_title), style = MaterialTheme.typography.titleSmall)
+                    }
+                    OutlinedButtonMMD(
+                        onClick = onSettings,
+                        enabled = state.ready,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        TextMMD(text = stringResource(R.string.mts_button), style = MaterialTheme.typography.titleSmall)
+                    }
                 }
             } else {
                 if (announced) {

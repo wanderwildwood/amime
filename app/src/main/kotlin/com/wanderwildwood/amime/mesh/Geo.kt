@@ -53,6 +53,16 @@ object Geo {
         return Away.Km(rounded, compass(bearingDegrees(from, to)))
     }
 
+    /**
+     * [people] with those whose position is known first, nearest to [here] at the top. The
+     * rest keep the order they came in, after them. The sort is stable, so two at the same
+     * distance stay as they were.
+     */
+    fun nearestFirst(here: GeoPoint, people: List<Person>): List<Person> {
+        val (placed, unplaced) = people.partition { it.latitude != null && it.longitude != null }
+        return placed.sortedBy { distanceMeters(here, GeoPoint(it.latitude!!, it.longitude!!)) } + unplaced
+    }
+
     /** The system's map chooser takes this. */
     fun geoUri(lat: Double, lon: Double, label: String): String =
         "geo:%.5f,%.5f?q=%.5f,%.5f(%s)".format(java.util.Locale.US, lat, lon, lat, lon, java.net.URLEncoder.encode(label, "UTF-8").replace("+", "%20"))
