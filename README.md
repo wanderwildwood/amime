@@ -77,7 +77,7 @@ Meshtastic's protocol definitions are carried unchanged in `app/src/main/proto` 
 
 ## Where this is up to
 
-**Version 0.3.0-mt1 (test build).** The commands and frames are written against
+**Version 0.3.0.** The commands and frames are written against
 `examples/companion_radio/MyMesh.cpp` in the MeshCore firmware rather than against the protocol
 documentation, for a reason given below. The session — handshake order, draining the message
 queue, matching an acknowledgement to the send that expected it — has no Android in it at all,
@@ -252,4 +252,4 @@ app has stored.
 GPL-3.0-only. MeshCore itself is MIT, and is not vendored here — only its protocol is
 implemented, from reading its source. The Meshtastic protocol definitions in
 `app/src/main/proto` are © Meshtastic LLC, GPL-3.0; the Wire runtime and Okio they are
-compiled against are Apache-2.0.
+compiled against, and ZXing, which draws the channel QR code, are Apache-2.0.
