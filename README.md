@@ -1,9 +1,9 @@
 # 網目 amime — Mesh
 
-A [MeshCore](https://meshcore.co.nz/) companion client for the
-[Mudita Kompakt](https://mudita.com/products/kompakt/) and its E Ink screen. Talks to a LoRa
-radio over Bluetooth and sends messages through a mesh that needs no towers, no carrier and
-no internet.
+A [MeshCore](https://meshcore.co.nz/) and [Meshtastic](https://meshtastic.org/) companion
+client for the [Mudita Kompakt](https://mudita.com/products/kompakt/) and its E Ink screen.
+Talks to a LoRa radio over Bluetooth and sends messages through a mesh that needs no towers,
+no carrier and no internet.
 
 *Amime* is 網目 — the eye of a net, the gap the weave makes. Which is the shape of the thing:
 not the nodes but the spaces they hold open between them.
