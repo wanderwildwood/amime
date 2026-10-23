@@ -105,6 +105,7 @@ wire {
         "meshtastic.Position",
         "meshtastic.User",
         "meshtastic.Telemetry",
+        "meshtastic.ChannelSet",
     )
     // The nanopb options are for the firmware's C code, not for this one.
     prune("NanoPBOptions")

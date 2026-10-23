@@ -5,7 +5,11 @@ import com.wanderwildwood.amime.link.RadioBackend
 import com.wanderwildwood.amime.link.RadioKind
 import okio.ByteString.Companion.encodeUtf8
 import org.meshtastic.proto.AdminMessage
+import okio.ByteString
+import org.meshtastic.proto.ChannelSet
+import org.meshtastic.proto.ChannelSettings
 import org.meshtastic.proto.Config
+import org.meshtastic.proto.ModuleConfig
 import org.meshtastic.proto.Data
 import org.meshtastic.proto.FromRadio
 import org.meshtastic.proto.MeshPacket
@@ -99,6 +103,15 @@ class MtSession(
          */
         fun onAck(packetId: Int, fromDestination: Boolean, error: Int) {}
 
+        /** The channel slots as the radio has them now, all of them, disabled ones included. */
+        fun onChannelInfos(channels: List<MtChannelInfo>) {}
+
+        /** The radio's settings, as read or as just changed. */
+        fun onSettings(configs: MtConfigs) {}
+
+        /** The radio answered a settings or channel change: true when it took it. */
+        fun onAdminAnswer(ok: Boolean) {}
+
         /** The firmware is too old to be worked with. */
         fun onTooOld(firmware: String) {}
 
@@ -114,7 +127,11 @@ class MtSession(
     var ready: Boolean = false
         private set
 
-    private var lora: Config.LoRaConfig? = null
+    /** What the radio has said of its settings; changed as the user changes them. */
+    var configs: MtConfigs = MtConfigs()
+        private set
+    private val adminSent = mutableSetOf<Int>()
+    private val lora: Config.LoRaConfig? get() = configs.lora
     private var firmware = ""
     private var draining = false
     private var again = false
@@ -227,11 +244,19 @@ class MtSession(
             channels[c.index] = c
             // The modem preset arrives in CONFIG, after the channels, and names the default
             // channel; so during the handshake they wait, and are told at the end.
-            if (ready) emitChannel(c)
+            if (ready) {
+                emitChannel(c)
+                listener.onChannelInfos(channelInfos())
+            }
         }
-        m.config?.lora?.let {
-            lora = it
-            listener.onRegion(it.region.value)
+        m.config?.let { c ->
+            configs = configs.with(c)
+            c.lora?.let { listener.onRegion(it.region.value) }
+            if (ready) listener.onSettings(configs)
+        }
+        m.moduleConfig?.let {
+            configs = configs.with(it)
+            if (ready) listener.onSettings(configs)
         }
         m.metadata?.let {
             firmware = it.firmware_version
@@ -244,6 +269,8 @@ class MtSession(
                 ready = true
                 channels.values.sortedBy { it.index }.forEach(::emitChannel)
                 listener.onChannelsLoaded()
+                listener.onChannelInfos(channelInfos())
+                listener.onSettings(configs)
                 listener.onReady(nodes[myNum]?.label.orEmpty(), firmware)
             }
         }
@@ -263,13 +290,13 @@ class MtSession(
 
     /** The default channel has no name of its own: it is shown as the modem preset, LongFast and so on. */
     private fun presetName(): String =
-        lora?.modem_preset?.name?.split('_')?.joinToString("") { w -> w.lowercase().replaceFirstChar { it.uppercase() } }
-            ?: "LongFast"
+        lora?.modem_preset?.let { presetLabel(it) } ?: "LongFast"
 
     private fun handleNodeInfo(info: NodeInfo) {
         val num = info.num.toLong() and MASK
         val old = nodes[num] ?: MtNode(num)
         val pos = info.position
+        if ((info.num.toLong() and MASK) == myNum && info.user != null) configs = configs.copy(owner = info.user)
         val node = old.copy(
             longName = info.user?.long_name?.takeIf { it.isNotEmpty() } ?: old.longName,
             shortName = info.user?.short_name?.takeIf { it.isNotEmpty() } ?: old.shortName,
@@ -351,10 +378,24 @@ class MtSession(
                 publish(old.copy(battery = level, lastHeard = maxOf(old.lastHeard, heard)))
             }
 
+            PortNum.ADMIN_APP -> {
+                if (from != myNum) return
+                val admin = runCatching { AdminMessage.ADAPTER.decode(d.payload) }.getOrNull() ?: return
+                admin.get_channel_response?.let { c ->
+                    channels[c.index] = c
+                    emitChannel(c)
+                    listener.onChannelInfos(channelInfos())
+                }
+            }
+
             PortNum.ROUTING_APP -> {
                 if (d.request_id == 0) return
                 val routing = runCatching { Routing.ADAPTER.decode(d.payload) }.getOrNull() ?: return
                 val error = routing.error_reason?.value ?: 0
+                if (adminSent.remove(d.request_id)) {
+                    listener.onAdminAnswer(error == 0)
+                    return
+                }
                 val expected = pending[d.request_id]
                 // An acknowledgement from anyone but the destination is a repeater saying it
                 // took the message on, which is not the same as it arriving, so it keeps
@@ -425,14 +466,188 @@ class MtSession(
     fun setRegion(code: Int): Boolean {
         val current = lora ?: return false
         val region = Config.LoRaConfig.RegionCode.fromValue(code) ?: return false
-        val admin = AdminMessage(set_config = Config(lora = current.copy(region = region)))
+        configs = configs.copy(lora = current.copy(region = region))
+        sendAdmin(AdminMessage(set_config = Config(lora = configs.lora)))
+        return true
+    }
+
+    /** Send an admin message to this node itself, asking for an answer. Returns the packet id. */
+    internal fun sendAdmin(admin: AdminMessage, track: Boolean = true, wantResponse: Boolean = false): Int {
+        val id = nextPacketId()
+        if (track) adminSent += id
         val packet = MeshPacket(
             to = myNum.toInt(),
-            id = nextPacketId(),
+            id = id,
             want_ack = true,
-            decoded = Data(portnum = PortNum.ADMIN_APP, payload = admin.encodeByteString()),
+            decoded = Data(portnum = PortNum.ADMIN_APP, payload = admin.encodeByteString(), want_response = wantResponse),
         )
         transport.write(ToRadio(packet = packet).encode())
+        return id
+    }
+
+    // ---- settings ----
+
+    /**
+     * Change one setting. The whole section it lives in goes to the radio with only this
+     * field changed; the radio replaces a section it is given. Nothing is sent when the
+     * settings have not been read, when the value is refused, or when this is only shown.
+     */
+    fun change(field: Field, value: Any): MtFields.Applied {
+        val result = if (!ready) MtFields.Applied.NotRead else MtFields.apply(field, value, configs)
+        if (result is MtFields.Applied.Change) {
+            configs = result.configs
+            sendAdmin(result.admin)
+            listener.onSettings(configs)
+        }
+        return result
+    }
+
+    /** Set the radio's fixed position and make it use it. The radio saves it. */
+    fun setFixedPosition(latitude: Double, longitude: Double): Boolean {
+        if (!ready) return false
+        sendAdmin(AdminMessage(set_fixed_position = Position(latitude_i = Math.round(latitude * 1e7).toInt(), longitude_i = Math.round(longitude * 1e7).toInt(), time = (clock() and 0xFFFFFFFFL).toInt())))
+        configs.position?.let { configs = configs.copy(position = it.copy(fixed_position = true)) }
+        listener.onSettings(configs)
+        return true
+    }
+
+    /** Stop using a fixed position. */
+    fun clearFixedPosition(): Boolean {
+        if (!ready) return false
+        sendAdmin(AdminMessage(remove_fixed_position = true))
+        configs.position?.let { configs = configs.copy(position = it.copy(fixed_position = false)) }
+        listener.onSettings(configs)
+        return true
+    }
+
+    // ---- channels ----
+
+    /** All the channel slots, as the radio last said them. */
+    fun channelInfos(): List<MtChannelInfo> =
+        channels.values.sortedBy { it.index }.map { (it.settings ?: ChannelSettings()).info(it.index, it.role.value) }
+
+    /** The channels that are on, as a [ChannelSet] to share. The radio settings ride along when [withLora]. */
+    fun channelSet(withLora: Boolean): ChannelSet? {
+        val on = channels.values.filter { it.role != org.meshtastic.proto.Channel.Role.DISABLED }.sortedBy { it.index }
+        if (on.isEmpty()) return null
+        return ChannelSet(
+            settings = on.map { it.settings ?: ChannelSettings() },
+            lora_config = if (withLora) lora else null,
+        )
+    }
+
+    /** The first free slot after the primary, or -1 when all eight are taken. */
+    fun freeSlot(): Int = (1 until MAX_CHANNELS).firstOrNull { i ->
+        (channels[i]?.role ?: org.meshtastic.proto.Channel.Role.DISABLED) == org.meshtastic.proto.Channel.Role.DISABLED
+    } ?: -1
+
+    /**
+     * Write channel [index]. Only what is given changes: a null [psk] keeps the key, and
+     * everything the radio holds about the channel that this app does not show is kept too.
+     * Asks the radio for the slot back afterwards so what is shown is what it holds.
+     * Returns false when the slot is unknown or the name or key is not one the radio accepts.
+     */
+    fun saveChannel(
+        index: Int,
+        name: String,
+        psk: ByteString?,
+        uplink: Boolean,
+        downlink: Boolean,
+        role: org.meshtastic.proto.Channel.Role? = null,
+    ): Boolean {
+        if (!ready || index !in 0 until MAX_CHANNELS) return false
+        if (name.toByteArray().size > CHANNEL_NAME_BYTES) return false
+        val old = channels[index] ?: org.meshtastic.proto.Channel(index = index)
+        val newRole = role ?: old.role
+        if (index == 0 && newRole != org.meshtastic.proto.Channel.Role.PRIMARY) return false
+        if (index != 0 && newRole == org.meshtastic.proto.Channel.Role.PRIMARY) return false
+        val base = old.settings ?: ChannelSettings()
+        val settings = base.copy(name = name, psk = psk ?: base.psk, uplink_enabled = uplink, downlink_enabled = downlink)
+        return put(old.copy(index = index, settings = settings, role = newRole))
+    }
+
+    /**
+     * Put a new secondary channel in the first free slot. Position sharing is switched off on
+     * it: a channel from somebody else's link is not one to broadcast where you are on.
+     * Returns the slot, or -1 when there is no room or the name or key is refused.
+     */
+    fun addChannel(name: String, psk: ByteString, uplink: Boolean = false, downlink: Boolean = false): Int {
+        val slot = freeSlot()
+        if (slot < 0 || !ready || name.toByteArray().size > CHANNEL_NAME_BYTES) return -1
+        val settings = ChannelSettings(
+            name = name, psk = psk, uplink_enabled = uplink, downlink_enabled = downlink,
+            module_settings = org.meshtastic.proto.ModuleSettings(position_precision = 0),
+        )
+        return if (put(org.meshtastic.proto.Channel(index = slot, settings = settings, role = org.meshtastic.proto.Channel.Role.SECONDARY))) slot else -1
+    }
+
+    /** Turn a secondary channel off and forget its key. The main channel cannot be removed. */
+    fun deleteChannel(index: Int): Boolean {
+        if (!ready || index !in 1 until MAX_CHANNELS) return false
+        val old = channels[index] ?: return false
+        if (old.role == org.meshtastic.proto.Channel.Role.DISABLED) return false
+        return put(org.meshtastic.proto.Channel(index = index, settings = ChannelSettings(), role = org.meshtastic.proto.Channel.Role.DISABLED))
+    }
+
+    private fun put(channel: org.meshtastic.proto.Channel): Boolean {
+        channels[channel.index] = channel
+        sendAdmin(AdminMessage(set_channel = channel))
+        emitChannel(channel)
+        listener.onChannelInfos(channelInfos())
+        // Read it back: the shown list should be what the radio holds, not what was sent.
+        sendAdmin(AdminMessage(get_channel_request = channel.index + 1), track = false, wantResponse = true)
+        return true
+    }
+
+    /** What importing the channels of a link would do, worked out without sending anything. */
+    fun planImport(set: ChannelSet): ImportPlan {
+        val presetOf = set.lora_config?.modem_preset?.let { presetLabel(it) } ?: presetName()
+        val have = channels.values.filter { it.role != org.meshtastic.proto.Channel.Role.DISABLED }
+        val free = (1 until MAX_CHANNELS).count { i ->
+            (channels[i]?.role ?: org.meshtastic.proto.Channel.Role.DISABLED) == org.meshtastic.proto.Channel.Role.DISABLED
+        }
+        var room = free
+        val items = set.settings.map { s ->
+            val name = s.name.ifEmpty { presetOf }
+            val same = have.any { h ->
+                val hs = h.settings ?: ChannelSettings()
+                hs.name.ifEmpty { presetName() } == name && hs.psk == s.psk
+            }
+            when {
+                s.name.toByteArray().size > CHANNEL_NAME_BYTES -> ImportItem(name, s.psk, KeyKind.of(s.psk), ImportItem.State.REFUSED)
+                same -> ImportItem(name, s.psk, KeyKind.of(s.psk), ImportItem.State.PRESENT)
+                room > 0 -> { room--; ImportItem(name, s.psk, KeyKind.of(s.psk), ImportItem.State.ADD) }
+                else -> ImportItem(name, s.psk, KeyKind.of(s.psk), ImportItem.State.NO_ROOM)
+            }
+        }
+        return ImportPlan(items, set.lora_config)
+    }
+
+    /** Add what [plan] says to add. Returns how many channels went in. */
+    fun applyImport(plan: ImportPlan): Int =
+        plan.items.filter { it.state == ImportItem.State.ADD }.count { addChannel(it.name, it.psk) >= 0 }
+
+    /**
+     * Take the radio settings that came in a link: region, preset, bandwidth and the like.
+     * What this radio's owner set for power, hops and transmitting is kept. Restarts the radio.
+     */
+    fun applyLoraFrom(incoming: Config.LoRaConfig): Boolean {
+        val current = lora ?: return false
+        if (!ready) return false
+        val next = current.copy(
+            region = if (incoming.region == Config.LoRaConfig.RegionCode.UNSET) current.region else incoming.region,
+            use_preset = incoming.use_preset,
+            modem_preset = incoming.modem_preset,
+            bandwidth = incoming.bandwidth,
+            spread_factor = incoming.spread_factor,
+            coding_rate = incoming.coding_rate,
+            frequency_offset = incoming.frequency_offset,
+            channel_num = incoming.channel_num,
+            override_frequency = incoming.override_frequency,
+        )
+        configs = configs.copy(lora = next)
+        sendAdmin(AdminMessage(set_config = Config(lora = next)))
+        listener.onSettings(configs)
         return true
     }
 
@@ -448,6 +663,12 @@ class MtSession(
         private const val RETRY_MS = 250L
         private const val MAX_EMPTY_BEFORE_READY = 40
         private const val MAX_STALLS = 3
+
+        /** How many channel slots the firmware has. */
+        const val MAX_CHANNELS = 8
+
+        fun presetLabel(p: Config.LoRaConfig.ModemPreset): String =
+            p.name.split('_').joinToString("") { w -> w.lowercase().replaceFirstChar { it.uppercase() } }
 
         /** A node number as the four-byte key this app files a person under. */
         fun keyOf(num: Long): List<Byte> =
@@ -466,4 +687,26 @@ class MtSession(
             return parts[0] < 2 || (parts[0] == 2 && parts[1] < 5)
         }
     }
+}
+
+/** One channel in a link, and what importing it would do. */
+data class ImportItem(val name: String, val psk: ByteString, val key: KeyKind, val state: State) {
+    enum class State {
+        /** Goes into a free slot as a secondary channel. */
+        ADD,
+
+        /** This radio already has a channel with this name and key. */
+        PRESENT,
+
+        /** All eight slots are in use. */
+        NO_ROOM,
+
+        /** The name is too long for the radio. */
+        REFUSED,
+    }
+}
+
+/** What a link would do: the channels, and the radio settings part, which is only ever applied on a second yes. */
+data class ImportPlan(val items: List<ImportItem>, val lora: Config.LoRaConfig?) {
+    val toAdd: Int get() = items.count { it.state == ImportItem.State.ADD }
 }
