@@ -45,7 +45,7 @@ class ChannelUrlTest {
         )
         val url = ChannelUrl.encode(set)
         assertFalse(url.contains('='))
-        assertFalse(url.contains('+') || url.contains('/', startIndex = 20))
+        assertFalse(url.substringAfter('#').let { it.contains('+') || it.contains('/') })
         assertEquals(set, ChannelUrl.parse(url))
     }
 

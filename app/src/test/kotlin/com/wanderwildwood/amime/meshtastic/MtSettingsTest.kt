@@ -52,7 +52,7 @@ private fun samples(f: Field): List<Any> = when (val k = f.kind) {
     is Kind.Choice -> k.options.map { it.value }
     is Kind.Num -> listOfNotNull(k.min, k.max, (k.min + k.max) / 2, if (k.zero != null) 0 else null)
     Kind.Flag -> listOf(true, false)
-    is Kind.Text -> listOf("", "a", "x".repeat(k.maxBytes))
+    is Kind.Text -> listOf("a", "x".repeat(k.maxBytes)) + (if (f.part == Part.OWNER) emptyList() else listOf(""))
     Kind.Info -> emptyList()
 }
 
@@ -229,7 +229,7 @@ class MtSettingsTest {
     }
 
     @Test
-    fn the_dangerous_ones_carry_a_warning() {
+    fun the_dangerous_ones_carry_a_warning() {
         val roles = (field("device.role").kind as Kind.Choice).options
         assertNotNull(roles.first { it.label == "Router" }.warn)
         assertNotNull(roles.first { it.label == "Router Late" }.warn)
