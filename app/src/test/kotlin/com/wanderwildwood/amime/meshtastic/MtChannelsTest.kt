@@ -149,6 +149,48 @@ class MtChannelsTest {
         assertEquals("crew", seen.infos[2].name)
     }
 
+    private fun answer(radio: ChanRadio, from: Int, requestId: Int, back: Channel) {
+        radio.waiting += FromRadio(
+            packet = MeshPacket(
+                from = from, to = SELF, id = 0x6968985e,
+                decoded = Data(portnum = PortNum.ADMIN_APP, request_id = requestId, payload = AdminMessage(get_channel_response = back).encodeByteString()),
+            ),
+        ).encode()
+    }
+
+    @Test
+    fun the_radios_own_answer_to_the_read_back_fills_the_slot_with_its_own_key() {
+        val (radio, seen, session) = rig()
+        val key = ByteArray(32) { (it * 3 + 1).toByte() }.toByteString()
+        assertEquals(2, session.addChannel("wndrtest", key))
+        val ask = radio.adminPackets().last()
+        answer(radio, SELF, ask.id, Channel(index = 2, role = Channel.Role.SECONDARY, settings = ChannelSettings(name = "wndrtest", psk = key)))
+        session.onFromNum()
+        assertEquals("wndrtest", seen.infos[2].name)
+        assertEquals(Channel.Role.SECONDARY.value, seen.infos[2].role)
+        assertEquals(KeyKind.of(key), seen.infos[2].key)
+    }
+
+    @Test
+    fun an_answer_with_no_sender_to_our_request_is_believed() {
+        val (radio, seen, session) = rig()
+        session.addChannel("crew", KEY_B)
+        answer(radio, 0, radio.adminPackets().last().id, Channel(index = 2, role = Channel.Role.SECONDARY, settings = ChannelSettings(name = "crew", psk = KEY_B, id = 4)))
+        session.onFromNum()
+        assertEquals("crew", seen.infos[2].name)
+    }
+
+    @Test
+    fun the_slot_asked_for_is_the_slot_filled_even_when_the_answer_names_another_index() {
+        val (radio, seen, session) = rig()
+        session.addChannel("crew", KEY_B)
+        // an answer that carries no index at all would land on the main channel
+        answer(radio, SELF, radio.adminPackets().last().id, Channel(role = Channel.Role.SECONDARY, settings = ChannelSettings(name = "crew", psk = KEY_B)))
+        session.onFromNum()
+        assertEquals("crew", seen.infos[2].name)
+        assertEquals(Channel.Role.PRIMARY.value, seen.infos[0].role)
+    }
+
     @Test
     fun an_admin_answer_from_another_node_is_not_believed() {
         val (radio, seen, session) = rig()

@@ -379,9 +379,18 @@ class MtSession(
             }
 
             PortNum.ADMIN_APP -> {
-                if (from != myNum) return
-                val admin = runCatching { AdminMessage.ADAPTER.decode(d.payload) }.getOrNull() ?: return
-                admin.get_channel_response?.let { c ->
+                // The radio answers our own request: from is its own number, or 0 when it
+                // did not stamp one. An answer to a request we sent is believed whoever it
+                // says it is from; anything else must come from this radio.
+                val asked = readRequests.remove(d.request_id)
+                if (asked == null && from != myNum && from != 0L) return
+                val admin = runCatching { AdminMessage.ADAPTER.decode(d.payload) }.getOrNull()
+                note("admin answer: from=${if (from == myNum) "self" else if (from == 0L) "none" else "other"} " +
+                    "asked=${asked != null} ${if (admin?.get_channel_response != null) "channel" else "other"}")
+                admin ?: return
+                admin.get_channel_response?.let { got ->
+                    // The slot asked for is the slot filled, whatever index the answer carries.
+                    val c = if (asked != null && got.index != asked) got.copy(index = asked) else got
                     channels[c.index] = c
                     emitChannel(c)
                     listener.onChannelInfos(channelInfos())
@@ -426,6 +435,9 @@ class MtSession(
 
     /** Where each message waiting for an acknowledgement is going. */
     private val pending = mutableMapOf<Int, Long>()
+
+    /** Packet id of each channel read-back asked for, and the slot it was for. */
+    private val readRequests = mutableMapOf<Int, Int>()
 
     /**
      * Send text to a node, or to a channel when [to] is [BROADCAST]. Returns the packet id,
@@ -595,7 +607,8 @@ class MtSession(
         emitChannel(channel)
         listener.onChannelInfos(channelInfos())
         // Read it back: the shown list should be what the radio holds, not what was sent.
-        sendAdmin(AdminMessage(get_channel_request = channel.index + 1), track = false, wantResponse = true)
+        val ask = sendAdmin(AdminMessage(get_channel_request = channel.index + 1), track = false, wantResponse = true)
+        readRequests[ask] = channel.index
         return true
     }
 
