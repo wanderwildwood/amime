@@ -13,6 +13,14 @@ For distances to Meshtastic nodes Mesh uses the position the radio reports for i
 you type in. A typed position is kept on this phone and nowhere else, and can be replaced at
 any time. Mesh asks for no location permission and never reads the phone's location.
 
+## Channels and keys
+
+A channel's key is its password. Mesh never shows a key. A new random key is made on the phone,
+kept only until it is saved to the radio, and shared afterwards as a QR code, which contains
+the keys; the screen says so. Adding or reading a channel link and showing a QR code happen
+on the phone, with no network. Scanning a QR is done by the Camera app, which Mesh asks for the
+text of the code; Mesh itself holds no camera permission.
+
 ## Permissions
 
 `app/src/main/AndroidManifest.xml` declares two, and both are about talking to a radio over

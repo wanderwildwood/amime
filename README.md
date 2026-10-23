@@ -31,12 +31,53 @@ whatever maps app is installed; Mesh draws no map and asks for no location permi
 distances it uses the radio's own GPS fix, or a position you type in. The radio does all the
 encryption. Pairing is the system's: a Meshtastic radio with a screen shows the PIN on it.
 
+### Channels, QR codes and radio settings (Meshtastic)
+
+**Channels.** A screen lists the radio's eight slots (main, secondary, free) and how each is
+locked (no key, the default key, or a key of its own), never the key itself. A channel can be
+added with a name and a key (none, the default, a new random 256-bit key, or one pasted in
+base64), edited (name, key, MQTT uplink and downlink) and removed. The main channel can be
+edited but not removed. Each change goes to the radio as a channel write, which the radio
+keeps at once without restarting, and the slot is read back so the list shows what the radio
+holds. A channel added this way does not share your position.
+
+**QR.** To add channels, the Camera app is asked, with the standard ZXing scan request, to
+read a Meshtastic channel QR (`https://meshtastic.org/e/#...`); a link can also be pasted. The
+link is read, the channels in it are listed with what would happen to each (added, already on
+the radio, no free slot), and only then are they added, as secondary channels. If the link
+also carries radio settings (region, modem preset), they are not applied with the channels:
+that is a separate button with its own confirmation, because it can take the radio off the
+frequency everyone else is on; it changes the region and modem settings and leaves power, hop
+limit and transmit as they are. Going the other way, "Show as QR" draws the radio's channels as
+a QR code, black on white, to scan from another phone, with or without the region and preset.
+The keys are in that code, and the screen says so. Mesh holds no camera permission: the Camera
+app does the scanning.
+
+**Radio settings.** A Settings screen lists the radio's settings in sections: LoRa (modem
+preset, hop limit, transmit power capped to the region's limit, transmit on or off, frequency
+slot, duty-cycle override and a few more), names, device (role, what to pass on, node-info
+interval and others), position and GPS (including pinning a fixed position from the position
+typed in this app), Bluetooth pairing, power, screen, Wi-Fi (on or off only), telemetry, store
+and forward, serial, alerts, range test, canned messages, neighbour info, detection sensor,
+people counter, and MQTT (on or off, and what it is set to, shown). No keys, passwords or
+network names are entered or shown here. Every row opens a dialog that says what the change
+does; a change sends the radio's whole current section with only that field changed, and the
+radio then restarts and the link drops, which the dialog says. Nothing is sent until the radio
+has finished telling Mesh its settings. The settings are one table in
+`meshtastic/MtSettings.kt`; the screens and the tests are written over it.
+
+The people list can be sorted nearest first (off until you turn it on) once a position is
+known.
+
+**Firmware** is updated on a computer, with the Meshtastic web flasher or its documentation,
+not from Mesh.
+
 Meshtastic's protocol definitions are carried unchanged in `app/src/main/proto` (see the
 `NOTICE` there) and compiled with Square's Wire at build time.
 
 ## Where this is up to
 
-**Version 0.2.0.** The commands and frames are written against
+**Version 0.3.0-mt1 (test build).** The commands and frames are written against
 `examples/companion_radio/MyMesh.cpp` in the MeshCore firmware rather than against the protocol
 documentation, for a reason given below. The session — handshake order, draining the message
 queue, matching an acknowledgement to the send that expected it — has no Android in it at all,
