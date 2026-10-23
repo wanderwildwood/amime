@@ -68,7 +68,14 @@ class MtSession(
     /** Seconds since the epoch. */
     private val clock: () -> Long = { System.currentTimeMillis() / 1000 },
     private val configId: Int = 0x4D4D,
-    firstPacketId: Int = 0x1000,
+    /**
+     * Where a session's first packet id comes from. The radio keeps a history of recent
+     * (sender, id) pairs across reconnects and drops a repeat, so ids must not restart at the
+     * same small numbers each time: this is a random 32-bit value, as the official apps use.
+     */
+    private val random: () -> Int = { java.security.SecureRandom().nextInt() },
+    /** Milliseconds, for timing out an admin write nobody answered. */
+    private val millis: () -> Long = { System.currentTimeMillis() },
 ) : RadioBackend {
 
     interface Listener {
@@ -112,6 +119,12 @@ class MtSession(
         /** The radio answered a settings or channel change: true when it took it. */
         fun onAdminAnswer(ok: Boolean) {}
 
+        /**
+         * Where the latest settings or channel write stands: waiting, saved, refused, not
+         * answered, or the link went before it was.
+         */
+        fun onAdminReport(report: MtAdminReport) {}
+
         /** The firmware is too old to be worked with. */
         fun onTooOld(firmware: String) {}
 
@@ -130,14 +143,16 @@ class MtSession(
     /** What the radio has said of its settings; changed as the user changes them. */
     var configs: MtConfigs = MtConfigs()
         private set
-    private val adminSent = mutableSetOf<Int>()
+    /** Admin writes sent and not yet answered, by packet id. Guarded by itself. */
+    private val adminPending = LinkedHashMap<Int, PendingWrite>()
+    private var failureInBatch: MtAdminReport? = null
     private val lora: Config.LoRaConfig? get() = configs.lora
     private var firmware = ""
     private var draining = false
     private var again = false
     private var emptyReads = 0
     private var stalls = 0
-    private var nextId = if (firstPacketId == 0) 1 else firstPacketId
+    private var nextId = random().let { if (it == 0) 1 else it }
     private val nodes = mutableMapOf<Long, MtNode>()
     private val channels = mutableMapOf<Int, org.meshtastic.proto.Channel>()
     private val seen = ArrayDeque<Int>()
@@ -145,6 +160,7 @@ class MtSession(
     // ---- driving it ----
 
     override fun start() {
+        onLinkDown()
         ready = false
         channels.clear()
         emptyReads = 0
@@ -401,10 +417,7 @@ class MtSession(
                 if (d.request_id == 0) return
                 val routing = runCatching { Routing.ADAPTER.decode(d.payload) }.getOrNull() ?: return
                 val error = routing.error_reason?.value ?: 0
-                if (adminSent.remove(d.request_id)) {
-                    listener.onAdminAnswer(error == 0)
-                    return
-                }
+                if (resolveAdmin(d.request_id, if (error == 0) Outcome.SAVED else Outcome.REFUSED, error)) return
                 val expected = pending[d.request_id]
                 // An acknowledgement from anyone but the destination is a repeater saying it
                 // took the message on, which is not the same as it arriving, so it keeps
@@ -476,17 +489,55 @@ class MtSession(
      * config has not been read yet.
      */
     fun setRegion(code: Int): Boolean {
-        val current = lora ?: return false
+        val current = effective().lora ?: return false
         val region = Config.LoRaConfig.RegionCode.fromValue(code) ?: return false
-        configs = configs.copy(lora = current.copy(region = region))
-        sendAdmin(AdminMessage(set_config = Config(lora = configs.lora)))
+        val next = current.copy(region = region)
+        sendAdmin(
+            AdminMessage(set_config = Config(lora = next)),
+            label = "Region = ${region.name}", restarts = true,
+            commit = { it.copy(lora = next) },
+        )
         return true
     }
 
-    /** Send an admin message to this node itself, asking for an answer. Returns the packet id. */
-    internal fun sendAdmin(admin: AdminMessage, track: Boolean = true, wantResponse: Boolean = false): Int {
+    private class PendingWrite(
+        val label: String,
+        val restarts: Boolean,
+        val sentAt: Long,
+        /** What to do to the confirmed settings once the radio says it took the write. */
+        val commit: (MtConfigs) -> MtConfigs,
+        /** What to undo if the radio refuses or never answers (channel slots are shown at once). */
+        val revert: () -> Unit,
+    )
+
+    private enum class Outcome { SAVED, REFUSED, NO_ANSWER }
+
+    /** The settings as the radio will hold them once everything sent and unanswered lands. */
+    private fun effective(): MtConfigs =
+        synchronized(adminPending) { adminPending.values.toList() }.fold(configs) { c, w -> w.commit(c) }
+
+    /**
+     * Send an admin message to this node itself, asking for an answer. Returns the packet id.
+     * A tracked write waits for the radio's routing answer; see [expireAdmin].
+     */
+    internal fun sendAdmin(
+        admin: AdminMessage,
+        track: Boolean = true,
+        wantResponse: Boolean = false,
+        label: String = "",
+        restarts: Boolean = false,
+        commit: (MtConfigs) -> MtConfigs = { it },
+        revert: () -> Unit = {},
+    ): Int {
         val id = nextPacketId()
-        if (track) adminSent += id
+        if (track) {
+            val first = synchronized(adminPending) {
+                val wasEmpty = adminPending.isEmpty()
+                adminPending[id] = PendingWrite(label, restarts, millis(), commit, revert)
+                wasEmpty
+            }
+            if (first) failureInBatch = null
+        }
         val packet = MeshPacket(
             to = myNum.toInt(),
             id = id,
@@ -494,7 +545,66 @@ class MtSession(
             decoded = Data(portnum = PortNum.ADMIN_APP, payload = admin.encodeByteString(), want_response = wantResponse),
         )
         transport.write(ToRadio(packet = packet).encode())
+        if (track) listener.onAdminReport(MtAdminReport(MtAdminReport.State.PENDING, label, restarts = restarts))
         return id
+    }
+
+    private fun resolveAdmin(id: Int, outcome: Outcome, error: Int = 0): Boolean {
+        val (write, left) = synchronized(adminPending) {
+            val w = adminPending.remove(id) ?: return false
+            w to adminPending.size
+        }
+        val state = when (outcome) {
+            Outcome.SAVED -> MtAdminReport.State.SAVED
+            Outcome.REFUSED -> MtAdminReport.State.REFUSED
+            Outcome.NO_ANSWER -> MtAdminReport.State.NO_ANSWER
+        }
+        val report = MtAdminReport(state, write.label, error, write.restarts)
+        if (outcome == Outcome.SAVED) {
+            configs = write.commit(configs)
+            listener.onSettings(configs)
+        } else {
+            write.revert()
+            if (failureInBatch == null) failureInBatch = report
+        }
+        note("admin write $id: $outcome error=$error")
+        listener.onAdminAnswer(outcome == Outcome.SAVED)
+        listener.onAdminReport(
+            if (left > 0) MtAdminReport(MtAdminReport.State.PENDING, write.label, restarts = write.restarts)
+            else failureInBatch ?: report,
+        )
+        return true
+    }
+
+    /** Whether any write is still waiting for the radio's answer. */
+    fun adminWaiting(): Boolean = synchronized(adminPending) { adminPending.isNotEmpty() }
+
+    /**
+     * Give up on writes that have waited [ADMIN_TIMEOUT_MS] without an answer: the shown
+     * value reverts and the user is told the radio did not answer. Returns whether any are
+     * still waiting. The caller ticks this while [adminWaiting].
+     */
+    fun expireAdmin(): Boolean {
+        val now = millis()
+        val late = synchronized(adminPending) { adminPending.filterValues { now - it.sentAt >= ADMIN_TIMEOUT_MS }.keys.toList() }
+        late.forEach { resolveAdmin(it, Outcome.NO_ANSWER) }
+        return adminWaiting()
+    }
+
+    /**
+     * The link went. Writes still unanswered are neither failed nor believed: a radio that
+     * restarts after a config write may take the link with it before, or after, answering.
+     * What the radio holds is read again on the next connection.
+     */
+    fun onLinkDown() {
+        val gone = synchronized(adminPending) {
+            val g = adminPending.values.toList()
+            adminPending.clear()
+            g
+        }
+        if (gone.isEmpty()) return
+        val last = gone.last()
+        listener.onAdminReport(MtAdminReport(MtAdminReport.State.DROPPED, last.label, restarts = gone.any { it.restarts }))
     }
 
     // ---- settings ----
@@ -505,11 +615,17 @@ class MtSession(
      * settings have not been read, when the value is refused, or when this is only shown.
      */
     fun change(field: Field, value: Any): MtFields.Applied {
-        val result = if (!ready) MtFields.Applied.NotRead else MtFields.apply(field, value, configs)
+        // Built on what is confirmed plus what is still on its way, so two quick changes in
+        // one section do not undo each other. The shown value only moves when the radio says
+        // it took the write.
+        val result = if (!ready) MtFields.Applied.NotRead else MtFields.apply(field, value, effective())
         if (result is MtFields.Applied.Change) {
-            configs = result.configs
-            sendAdmin(result.admin)
-            listener.onSettings(configs)
+            sendAdmin(
+                result.admin,
+                label = "${field.title} = ${MtFields.display(field, result.configs)}",
+                restarts = field.restarts,
+                commit = { it.takePart(field.part, result.configs) },
+            )
         }
         return result
     }
@@ -517,18 +633,20 @@ class MtSession(
     /** Set the radio's fixed position and make it use it. The radio saves it. */
     fun setFixedPosition(latitude: Double, longitude: Double): Boolean {
         if (!ready) return false
-        sendAdmin(AdminMessage(set_fixed_position = Position(latitude_i = Math.round(latitude * 1e7).toInt(), longitude_i = Math.round(longitude * 1e7).toInt(), time = (clock() and 0xFFFFFFFFL).toInt())))
-        configs.position?.let { configs = configs.copy(position = it.copy(fixed_position = true)) }
-        listener.onSettings(configs)
+        sendAdmin(
+            AdminMessage(set_fixed_position = Position(latitude_i = Math.round(latitude * 1e7).toInt(), longitude_i = Math.round(longitude * 1e7).toInt(), time = (clock() and 0xFFFFFFFFL).toInt())),
+            commit = { c -> c.position?.let { c.copy(position = it.copy(fixed_position = true)) } ?: c },
+        )
         return true
     }
 
     /** Stop using a fixed position. */
     fun clearFixedPosition(): Boolean {
         if (!ready) return false
-        sendAdmin(AdminMessage(remove_fixed_position = true))
-        configs.position?.let { configs = configs.copy(position = it.copy(fixed_position = false)) }
-        listener.onSettings(configs)
+        sendAdmin(
+            AdminMessage(remove_fixed_position = true),
+            commit = { c -> c.position?.let { c.copy(position = it.copy(fixed_position = false)) } ?: c },
+        )
         return true
     }
 
@@ -602,8 +720,19 @@ class MtSession(
     }
 
     private fun put(channel: org.meshtastic.proto.Channel): Boolean {
+        // The slot list shows the new channel at once (a second add must see the slot taken),
+        // and goes back to what it was if the radio refuses or never answers.
+        val before = channels[channel.index]
         channels[channel.index] = channel
-        sendAdmin(AdminMessage(set_channel = channel))
+        sendAdmin(
+            AdminMessage(set_channel = channel),
+            revert = {
+                val old = before ?: org.meshtastic.proto.Channel(index = channel.index)
+                if (before == null) channels.remove(channel.index) else channels[channel.index] = before
+                emitChannel(old)
+                listener.onChannelInfos(channelInfos())
+            },
+        )
         emitChannel(channel)
         listener.onChannelInfos(channelInfos())
         // Read it back: the shown list should be what the radio holds, not what was sent.
@@ -645,7 +774,7 @@ class MtSession(
      * What this radio's owner set for power, hops and transmitting is kept. Restarts the radio.
      */
     fun applyLoraFrom(incoming: Config.LoRaConfig): Boolean {
-        val current = lora ?: return false
+        val current = effective().lora ?: return false
         if (!ready) return false
         val next = current.copy(
             region = if (incoming.region == Config.LoRaConfig.RegionCode.UNSET) current.region else incoming.region,
@@ -658,15 +787,18 @@ class MtSession(
             channel_num = incoming.channel_num,
             override_frequency = incoming.override_frequency,
         )
-        configs = configs.copy(lora = next)
-        sendAdmin(AdminMessage(set_config = Config(lora = next)))
-        listener.onSettings(configs)
+        sendAdmin(
+            AdminMessage(set_config = Config(lora = next)),
+            label = "Radio settings from the link", restarts = true,
+            commit = { it.copy(lora = next) },
+        )
         return true
     }
 
     private fun nextPacketId(): Int {
         val id = nextId
-        nextId = if (nextId == Int.MAX_VALUE) 1 else nextId + 1
+        // 32 bits wrapping; 0 means "no id" to the radio, so it is skipped.
+        nextId = if (nextId == -1) 1 else nextId + 1
         return id
     }
 
@@ -676,6 +808,9 @@ class MtSession(
         private const val RETRY_MS = 250L
         private const val MAX_EMPTY_BEFORE_READY = 40
         private const val MAX_STALLS = 3
+
+        /** How long a settings write waits for the radio's answer. */
+        const val ADMIN_TIMEOUT_MS = 8000L
 
         /** How many channel slots the firmware has. */
         const val MAX_CHANNELS = 8
@@ -722,4 +857,32 @@ data class ImportItem(val name: String, val psk: ByteString, val key: KeyKind, v
 /** What a link would do: the channels, and the radio settings part, which is only ever applied on a second yes. */
 data class ImportPlan(val items: List<ImportItem>, val lora: Config.LoRaConfig?) {
     val toAdd: Int get() = items.count { it.state == ImportItem.State.ADD }
+}
+
+/** Where the latest settings or channel write stands, for the screen to put in words. */
+data class MtAdminReport(
+    val state: State,
+    /** What was written, such as "Hop limit = 4 hops"; empty when there is no short way to say. */
+    val label: String = "",
+    /** A [Routing.Error] value when [state] is REFUSED. */
+    val error: Int = 0,
+    /** Whether the radio restarts after this write, which takes the link with it. */
+    val restarts: Boolean = false,
+) {
+    enum class State {
+        /** Sent; the radio has not answered. */
+        PENDING,
+
+        /** The radio answered that it took it. */
+        SAVED,
+
+        /** The radio answered with a reason for not taking it. */
+        REFUSED,
+
+        /** Nothing came back in time. */
+        NO_ANSWER,
+
+        /** The link dropped before an answer; if the radio restarts, that is expected. */
+        DROPPED,
+    }
 }

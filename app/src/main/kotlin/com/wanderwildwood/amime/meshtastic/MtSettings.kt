@@ -81,6 +81,28 @@ data class MtConfigs(
         Part.PAXCOUNTER -> paxcounter?.let { AdminMessage(set_module_config = ModuleConfig(paxcounter = it)) }
     }
 
+    /** This config with the one section [part] taken from [from]. */
+    fun takePart(part: Part, from: MtConfigs): MtConfigs = when (part) {
+        Part.OWNER -> copy(owner = from.owner)
+        Part.LORA -> copy(lora = from.lora)
+        Part.DEVICE -> copy(device = from.device)
+        Part.POSITION -> copy(position = from.position)
+        Part.POWER -> copy(power = from.power)
+        Part.NETWORK -> copy(network = from.network)
+        Part.DISPLAY -> copy(display = from.display)
+        Part.BLUETOOTH -> copy(bluetooth = from.bluetooth)
+        Part.MQTT -> copy(mqtt = from.mqtt)
+        Part.SERIAL -> copy(serial = from.serial)
+        Part.EXT_NOTIFICATION -> copy(external_notification = from.external_notification)
+        Part.STORE_FORWARD -> copy(store_forward = from.store_forward)
+        Part.RANGE_TEST -> copy(range_test = from.range_test)
+        Part.TELEMETRY -> copy(telemetry = from.telemetry)
+        Part.CANNED_MESSAGE -> copy(canned_message = from.canned_message)
+        Part.NEIGHBOR_INFO -> copy(neighbor_info = from.neighbor_info)
+        Part.DETECTION_SENSOR -> copy(detection_sensor = from.detection_sensor)
+        Part.PAXCOUNTER -> copy(paxcounter = from.paxcounter)
+    }
+
     /** Whether [part] has been read. */
     fun has(part: Part): Boolean = toAdmin(part) != null
 }

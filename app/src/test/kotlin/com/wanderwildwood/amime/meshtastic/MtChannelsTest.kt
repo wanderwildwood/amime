@@ -341,6 +341,20 @@ class MtChannelsTest {
         assertEquals(4, sent.hop_limit)
         assertEquals(20, sent.tx_power)
         assertTrue(sent.tx_enabled)
+        // shown only once the radio has said it took it
+        assertEquals(null, seen.configs!!.lora?.takeIf { it.region == Config.LoRaConfig.RegionCode.EU_868 })
+        session.onRead(
+            org.meshtastic.proto.FromRadio(
+                packet = org.meshtastic.proto.MeshPacket(
+                    from = 0x11, to = 0x11, id = 3,
+                    decoded = org.meshtastic.proto.Data(
+                        portnum = org.meshtastic.proto.PortNum.ROUTING_APP,
+                        request_id = radio.adminPackets().single().id,
+                        payload = org.meshtastic.proto.Routing(error_reason = org.meshtastic.proto.Routing.Error.NONE).encodeByteString(),
+                    ),
+                ),
+            ).encode(),
+        )
         assertEquals(sent, seen.configs!!.lora)
     }
 

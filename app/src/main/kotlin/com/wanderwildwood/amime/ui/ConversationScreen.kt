@@ -301,7 +301,7 @@ private const val NEARLY = 20
  * 1 no route, 5 retransmitted out, 6 no channel, 7 too large, 9 duty cycle, 35 and 39 the
  * other node's key is not known yet, and so on.
  */
-private fun routingFailureText(code: Int): Int = when (code) {
+internal fun routingFailureText(code: Int): Int = when (code) {
     1 -> R.string.mt_fail_no_route
     2, 3, 5 -> R.string.mt_fail_no_answer
     6 -> R.string.mt_fail_no_channel

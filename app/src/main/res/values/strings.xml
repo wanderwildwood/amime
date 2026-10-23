@@ -308,10 +308,16 @@
     <string name="mts_set">Set</string>
     <string name="mts_sent_restart">Sent: %1$s. The radio restarts; connect again from the list.</string>
     <string name="mts_sent_now">Sent: %1$s.</string>
+    <string name="mts_waiting">Waiting for the radio to answer.</string>
+    <string name="mts_saved">Sent: %1$s. The radio saved this.</string>
+    <string name="mts_saved_plain">Sent. The radio saved this.</string>
+    <string name="mts_saved_restart">The radio restarts; connect again from the list.</string>
+    <string name="mts_no_answer">The radio did not answer. Try again.</string>
+    <string name="mts_not_taken">The radio did not take this. %1$s</string>
+    <string name="mts_dropped">The link dropped before the radio answered. Connect again and check the setting.</string>
     <string name="mts_refused_prefix">Not sent: %1$s</string>
     <string name="mts_fixed_set">Use my typed position as the radio\'s fixed position</string>
     <string name="mts_fixed_set_help">Pins the radio to the position typed in this app. Type it from the people list first.</string>
     <string name="mts_fixed_clear">Stop using a fixed position</string>
-    <string name="mts_fixed_sent">Sent. The radio keeps it at once.</string>
     <string name="mts_sort_nearest">Sort: nearest first (%1$s)</string>
 </resources>

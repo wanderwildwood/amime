@@ -30,9 +30,32 @@ import com.wanderwildwood.amime.R
 import com.wanderwildwood.amime.mesh.GeoPoint
 import com.wanderwildwood.amime.meshtastic.Field
 import com.wanderwildwood.amime.meshtastic.Kind
+import com.wanderwildwood.amime.meshtastic.MtAdminReport
 import com.wanderwildwood.amime.meshtastic.MtConfigs
 import com.wanderwildwood.amime.meshtastic.MtFields
 import com.wanderwildwood.amime.meshtastic.Part
+
+/**
+ * A write's progress in words: waiting, saved, refused with the radio's reason, unanswered, or
+ * cut off by the link going. Saying "Sent" waits for the radio's answer.
+ */
+@Composable
+fun adminNotice(report: MtAdminReport?): String? {
+    report ?: return null
+    return when (report.state) {
+        MtAdminReport.State.PENDING -> stringResource(R.string.mts_waiting)
+        MtAdminReport.State.SAVED -> {
+            val saved = if (report.label.isEmpty()) stringResource(R.string.mts_saved_plain)
+            else stringResource(R.string.mts_saved, report.label)
+            if (report.restarts) saved + " " + stringResource(R.string.mts_saved_restart) else saved
+        }
+        MtAdminReport.State.REFUSED -> stringResource(R.string.mts_not_taken, stringResource(routingFailureText(report.error)))
+        MtAdminReport.State.NO_ANSWER -> stringResource(R.string.mts_no_answer)
+        MtAdminReport.State.DROPPED ->
+            if (report.restarts) stringResource(R.string.mts_sent_restart, report.label.ifEmpty { "-" })
+            else stringResource(R.string.mts_dropped)
+    }
+}
 
 /**
  * The radio's settings, in sections. Every row opens a dialog for its one value, and the
@@ -45,6 +68,7 @@ fun RadioSettingsScreen(
     configs: MtConfigs?,
     regionLabel: String,
     typedPosition: GeoPoint?,
+    report: MtAdminReport?,
     onRegion: () -> Unit,
     onChange: (Field, Any) -> MtFields.Applied,
     onFixedPosition: () -> Boolean,
@@ -62,9 +86,6 @@ fun RadioSettingsScreen(
     }
 
     val notRead = stringResource(R.string.mts_not_read)
-    val sentRestart = stringResource(R.string.mts_sent_restart, "%s")
-    val sentNow = stringResource(R.string.mts_sent_now, "%s")
-    val fixedSent = stringResource(R.string.mts_fixed_sent)
     val refusedPrefix = stringResource(R.string.mts_refused_prefix, "%s")
 
     Scaffold(
@@ -84,7 +105,7 @@ fun RadioSettingsScreen(
         },
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-            notice?.let { Note(it) }
+            (notice ?: adminNotice(report))?.let { Note(it) }
             if (configs == null) {
                 Note(stringResource(R.string.mts_wait))
                 return@Column
@@ -123,7 +144,7 @@ fun RadioSettingsScreen(
                                 stringResource(R.string.mts_fixed_set_help),
                                 settled = typedPosition != null,
                                 onClick = if (typedPosition != null) ({
-                                    notice = if (onFixedPosition()) fixedSent else notRead
+                                    notice = if (onFixedPosition()) null else notRead
                                 }) else null,
                             )
                         }
@@ -131,7 +152,7 @@ fun RadioSettingsScreen(
                             BorderedRow(
                                 stringResource(R.string.mts_fixed_clear), null,
                                 onClick = {
-                                    notice = if (onClearFixed()) fixedSent else notRead
+                                    notice = if (onClearFixed()) null else notRead
                                 },
                             )
                         }
@@ -152,10 +173,8 @@ fun RadioSettingsScreen(
                     notice = when (val r = onChange(f, value)) {
                         MtFields.Applied.NotRead -> notRead
                         is MtFields.Applied.Refused -> refusedPrefix.replace("%s", r.reason)
-                        is MtFields.Applied.Change -> {
-                            val shown = "${f.title} = ${MtFields.display(f, r.configs)}"
-                            (if (f.restarts) sentRestart else sentNow).replace("%s", shown)
-                        }
+                        // The radio's own answer says what happened; see adminNotice.
+                        is MtFields.Applied.Change -> null
                     }
                 },
             )

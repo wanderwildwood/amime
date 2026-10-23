@@ -212,6 +212,8 @@ data class MeshState(
     val mtChannels: List<com.wanderwildwood.amime.meshtastic.MtChannelInfo> = emptyList(),
     /** A Meshtastic radio's settings as last read or changed; null until it has said. */
     val mtConfigs: com.wanderwildwood.amime.meshtastic.MtConfigs? = null,
+    /** Where the latest Meshtastic settings or channel write stands; null when none was made. */
+    val mtAdmin: com.wanderwildwood.amime.meshtastic.MtAdminReport? = null,
     /** Set when the firmware is too old to be worked with. */
     val oldFirmware: String? = null,
 ) {

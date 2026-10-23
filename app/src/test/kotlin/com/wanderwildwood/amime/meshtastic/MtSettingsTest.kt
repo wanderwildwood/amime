@@ -17,6 +17,7 @@ import org.meshtastic.proto.ModuleConfig
 import org.meshtastic.proto.MyNodeInfo
 import org.meshtastic.proto.NodeInfo
 import org.meshtastic.proto.PortNum
+import org.meshtastic.proto.Routing
 import org.meshtastic.proto.ToRadio
 import org.meshtastic.proto.User
 
@@ -55,6 +56,14 @@ private fun samples(f: Field): List<Any> = when (val k = f.kind) {
     is Kind.Text -> listOf("a", "x".repeat(k.maxBytes)) + (if (f.part == Part.OWNER) emptyList() else listOf(""))
     Kind.Info -> emptyList()
 }
+
+/** The radio's routing answer to one of our packets. */
+private fun routing(requestId: Int, error: Routing.Error): ByteArray = FromRadio(
+    packet = MeshPacket(
+        from = 0x11, to = 0x11, id = 77,
+        decoded = Data(portnum = PortNum.ROUTING_APP, request_id = requestId, payload = Routing(error_reason = error).encodeByteString()),
+    ),
+).encode()
 
 class MtSettingsTest {
 
@@ -340,6 +349,9 @@ class MtSettingsTest {
         assertEquals(PortNum.ADMIN_APP, p.decoded!!.portnum)
         val sent = AdminMessage.ADAPTER.decode(p.decoded!!.payload).set_config!!.lora!!
         assertEquals(full().lora!!.copy(hop_limit = 5), sent)
+        // the shown value moves when the radio says it took the write, not before
+        assertEquals(4, s.configs.lora!!.hop_limit)
+        s.onRead(routing(p.id, Routing.Error.NONE))
         assertEquals(5, heard.configs!!.lora!!.hop_limit)
     }
 
@@ -371,10 +383,12 @@ class MtSettingsTest {
         val sent = AdminMessage.ADAPTER.decode(radio.written.single().packet!!.decoded!!.payload).set_fixed_position!!
         assertEquals(355951000, sent.latitude_i)
         assertEquals(-825515000, sent.longitude_i)
+        s.onRead(routing(radio.written.single().packet!!.id, Routing.Error.NONE))
         assertTrue(heard.configs!!.position!!.fixed_position)
         radio.written.clear()
         assertTrue(s.clearFixedPosition())
         assertEquals(true, AdminMessage.ADAPTER.decode(radio.written.single().packet!!.decoded!!.payload).remove_fixed_position)
+        s.onRead(routing(radio.written.single().packet!!.id, Routing.Error.NONE))
         assertFalse(heard.configs!!.position!!.fixed_position)
     }
 }

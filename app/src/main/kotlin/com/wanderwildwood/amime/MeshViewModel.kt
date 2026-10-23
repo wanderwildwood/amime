@@ -25,6 +25,7 @@ import com.wanderwildwood.amime.meshtastic.ChannelUrl
 import com.wanderwildwood.amime.meshtastic.Field
 import com.wanderwildwood.amime.meshtastic.ImportPlan
 import com.wanderwildwood.amime.meshtastic.MtChannelInfo
+import com.wanderwildwood.amime.meshtastic.MtAdminReport
 import com.wanderwildwood.amime.meshtastic.MtConfigs
 import com.wanderwildwood.amime.meshtastic.MtFields
 import com.wanderwildwood.amime.meshtastic.MtNode
@@ -578,6 +579,7 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
                 handshakeWatch?.cancel()
                 _connecting.value = null
                 store.onDisconnected()
+                mtSession.onLinkDown()
             }
 
             override fun onPairingRequired() {
@@ -602,6 +604,18 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
     )
 
     private var lastDevice: BluetoothDevice? = null
+    private var adminWatch: Job? = null
+
+    /** While a settings write waits for the radio, check once a second whether it has run out of time. */
+    private fun watchAdmin() {
+        if (adminWatch?.isActive == true) return
+        adminWatch = viewModelScope.launch {
+            while (mtSession.adminWaiting()) {
+                delay(1000)
+                mtSession.expireAdmin()
+            }
+        }
+    }
 
     private val mtListener: MtSession.Listener = object : MtSession.Listener {
         override fun onReady(name: String, firmware: String) {
@@ -642,6 +656,11 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
         override fun onChannelInfos(channels: List<MtChannelInfo>) = store.mtChannelInfos(channels)
 
         override fun onSettings(configs: MtConfigs) = store.mtConfigs(configs)
+
+        override fun onAdminReport(report: MtAdminReport) {
+            store.mtAdmin(report)
+            if (report.state == MtAdminReport.State.PENDING) watchAdmin()
+        }
 
         override fun onText(from: Long, channel: Int?, text: String, time: Long, snr: Float?, hops: Int?) {
             if (channel == null) {

@@ -226,7 +226,7 @@ class MeshStore(
 
     /** A Meshtastic radio has finished its handshake. */
     fun mtReady(name: String) = update {
-        copy(nodeName = name.ifBlank { null }, ready = true, radio = RadioKind.MESHTASTIC)
+        copy(nodeName = name.ifBlank { null }, ready = true, radio = RadioKind.MESHTASTIC, mtAdmin = null)
     }
 
     fun mtNode(person: Person) = update {
@@ -254,6 +254,8 @@ class MeshStore(
     fun mtChannelInfos(list: List<com.wanderwildwood.amime.meshtastic.MtChannelInfo>) = update { copy(mtChannels = list) }
 
     fun mtConfigs(configs: com.wanderwildwood.amime.meshtastic.MtConfigs) = update { copy(mtConfigs = configs) }
+
+    fun mtAdmin(report: com.wanderwildwood.amime.meshtastic.MtAdminReport?) = update { copy(mtAdmin = report) }
 
     fun mtRegion(region: Int) = update { copy(region = region, radio = RadioKind.MESHTASTIC) }
 

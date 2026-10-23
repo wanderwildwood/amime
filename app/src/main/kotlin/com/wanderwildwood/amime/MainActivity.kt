@@ -24,6 +24,7 @@ import com.wanderwildwood.amime.ui.ChannelEditScreen
 import com.wanderwildwood.amime.ui.ChannelImportScreen
 import com.wanderwildwood.amime.ui.ChannelQrScreen
 import com.wanderwildwood.amime.ui.ChannelsScreen
+import com.wanderwildwood.amime.ui.adminNotice
 import com.wanderwildwood.amime.ui.PasteLinkDialog
 import com.wanderwildwood.amime.ui.RadioSettingsScreen
 import com.wanderwildwood.amime.ui.RegionScreen
@@ -137,7 +138,7 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
                 ChannelsScreen(
                     channels = state.mtChannels,
                     primaryName = primaryName,
-                    notice = channelNotice,
+                    notice = channelNotice ?: adminNotice(state.mtAdmin),
                     onEdit = { channelNotice = null; page = MtPage.Edit(it) },
                     onAdd = { channelNotice = null; page = MtPage.Edit(null) },
                     onScan = startScan,
@@ -163,12 +164,12 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
                         } else {
                             viewModel.saveChannel(p.channel.index, name, key, up, down)
                         }
-                        channelNotice = context.getString(if (ok) R.string.mtx_saved else R.string.mtx_refused_save)
+                        channelNotice = if (ok) null else context.getString(R.string.mtx_refused_save)
                         page = MtPage.Channels
                     },
                     onDelete = {
                         p.channel?.let { viewModel.deleteChannel(it.index) }
-                        channelNotice = context.getString(R.string.mtx_removed)
+                        channelNotice = null
                         page = MtPage.Channels
                     },
                     onClose = { page = MtPage.Channels },
@@ -181,12 +182,12 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
                     regionName = regionName(p.plan.lora?.region?.value),
                     onAdd = {
                         val n = viewModel.applyImport(p.plan)
-                        channelNotice = context.getString(R.string.mtx_added, n)
+                        channelNotice = if (n > 0) null else context.getString(R.string.mtx_added, n)
                         page = MtPage.Channels
                     },
                     onApplyRadio = {
                         viewModel.applyLoraFrom(p.plan)
-                        channelNotice = context.getString(R.string.mtx_import_lora_sent)
+                        channelNotice = null
                         page = MtPage.Channels
                     },
                     onClose = { page = MtPage.Channels },
@@ -216,6 +217,7 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
                         configs = state.mtConfigs,
                         regionLabel = regionName(state.region),
                         typedPosition = viewModel.typedHere,
+                        report = state.mtAdmin,
                         onRegion = { regionOpen = true },
                         onChange = viewModel::changeSetting,
                         onFixedPosition = { viewModel.typedHere?.let(viewModel::setFixedPosition) ?: false },
