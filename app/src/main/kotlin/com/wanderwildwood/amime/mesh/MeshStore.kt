@@ -255,7 +255,28 @@ class MeshStore(
 
     fun mtConfigs(configs: com.wanderwildwood.amime.meshtastic.MtConfigs) = update { copy(mtConfigs = configs) }
 
-    fun mtAdmin(report: com.wanderwildwood.amime.meshtastic.MtAdminReport?) = update { copy(mtAdmin = report) }
+    /**
+     * A write's progress. A new write (PENDING), or one with no owner yet, belongs to the screen
+     * showing now; its later answers stay with the screen that sent it.
+     */
+    fun mtAdmin(report: com.wanderwildwood.amime.meshtastic.MtAdminReport?) = update {
+        val fresh = report == null || report.state == com.wanderwildwood.amime.meshtastic.MtAdminReport.State.PENDING
+        when {
+            report == null -> copy(mtAdmin = null, mtAdminOwner = null)
+            fresh || mtAdminOwner == null -> copy(mtAdmin = report, mtAdminOwner = noticeScreen)
+            // The answer to a write made on a screen that has since been left: nobody is there to read it.
+            mtAdminOwner != noticeScreen -> copy(mtAdmin = null, mtAdminOwner = null)
+            else -> copy(mtAdmin = report)
+        }
+    }
+
+    /** The screen on show changed: a notice that belongs to another screen is dropped. */
+    fun noticeScreen(screen: NoticeScreen) = update {
+        if (screen == noticeScreen) this
+        else if (mtAdminOwner != null && mtAdminOwner != screen && mtAdmin?.state != com.wanderwildwood.amime.meshtastic.MtAdminReport.State.PENDING) {
+            copy(noticeScreen = screen, mtAdmin = null, mtAdminOwner = null)
+        } else copy(noticeScreen = screen)
+    }
 
     fun mtRegion(region: Int) = update { copy(region = region, radio = RadioKind.MESHTASTIC) }
 

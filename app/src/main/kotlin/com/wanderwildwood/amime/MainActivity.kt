@@ -17,6 +17,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mudita.mmd.ThemeMMD
 import com.wanderwildwood.amime.link.RadioKind
 import com.wanderwildwood.amime.mesh.GeoPoint
+import com.wanderwildwood.amime.mesh.NoticeScreen
 import com.wanderwildwood.amime.mesh.Person
 import com.wanderwildwood.amime.ui.PersonHeader
 import com.wanderwildwood.amime.ui.PositionDialog
@@ -100,6 +101,13 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
     var channelNotice by remember { mutableStateOf<String?>(null) }
     var pasting by remember { mutableStateOf(false) }
     val meshtastic = state.radio == RadioKind.MESHTASTIC
+    // A notice about a write is said where the write was made, and goes when that screen is left.
+    val noticeScreen = when (page) {
+        MtPage.Settings -> NoticeScreen.SETTINGS
+        null -> NoticeScreen.OTHER
+        else -> NoticeScreen.CHANNELS
+    }
+    LaunchedEffect(noticeScreen) { viewModel.noticeScreen(noticeScreen) }
     val context = androidx.compose.ui.platform.LocalContext.current
     val nearest by viewModel.nearestFirst.collectAsStateWithLifecycle()
 
@@ -138,7 +146,7 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
                 ChannelsScreen(
                     channels = state.mtChannels,
                     primaryName = primaryName,
-                    notice = channelNotice ?: adminNotice(state.mtAdmin),
+                    notice = channelNotice ?: adminNotice(state.adminNoticeFor(NoticeScreen.CHANNELS)),
                     onEdit = { channelNotice = null; page = MtPage.Edit(it) },
                     onAdd = { channelNotice = null; page = MtPage.Edit(null) },
                     onScan = startScan,
@@ -217,7 +225,7 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
                         configs = state.mtConfigs,
                         regionLabel = regionName(state.region),
                         typedPosition = viewModel.typedHere,
-                        report = state.mtAdmin,
+                        report = state.adminNoticeFor(NoticeScreen.SETTINGS),
                         onRegion = { regionOpen = true },
                         onChange = viewModel::changeSetting,
                         onFixedPosition = { viewModel.typedHere?.let(viewModel::setFixedPosition) ?: false },
@@ -262,6 +270,7 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
             title = channel.name,
             messages = state.conversations[channel.key].orEmpty(),
             canSend = state.ready,
+            radio = state.radio,
             channel = true,
             // The radio puts "name: " in front and cuts the whole at the limit without a word,
             // so the room for the words is what the name leaves.
@@ -297,6 +306,7 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
             title = current.label,
             messages = state.conversations[person.prefix].orEmpty(),
             canSend = state.ready,
+            radio = state.radio,
             sendAgain = if (current.pathKnown) {
                 R.string.message_send_again_new_route
             } else {

@@ -494,7 +494,7 @@ class MtSession(
         val next = current.copy(region = region)
         sendAdmin(
             AdminMessage(set_config = Config(lora = next)),
-            label = "Region = ${region.name}", restarts = true,
+            label = "Region = ${region.name}", restart = Restart.YES,
             commit = { it.copy(lora = next) },
         )
         return true
@@ -502,7 +502,7 @@ class MtSession(
 
     private class PendingWrite(
         val label: String,
-        val restarts: Boolean,
+        val restart: Restart,
         val sentAt: Long,
         /** What to do to the confirmed settings once the radio says it took the write. */
         val commit: (MtConfigs) -> MtConfigs,
@@ -525,7 +525,7 @@ class MtSession(
         track: Boolean = true,
         wantResponse: Boolean = false,
         label: String = "",
-        restarts: Boolean = false,
+        restart: Restart = Restart.NO,
         commit: (MtConfigs) -> MtConfigs = { it },
         revert: () -> Unit = {},
     ): Int {
@@ -533,7 +533,7 @@ class MtSession(
         if (track) {
             val first = synchronized(adminPending) {
                 val wasEmpty = adminPending.isEmpty()
-                adminPending[id] = PendingWrite(label, restarts, millis(), commit, revert)
+                adminPending[id] = PendingWrite(label, restart, millis(), commit, revert)
                 wasEmpty
             }
             if (first) failureInBatch = null
@@ -545,7 +545,7 @@ class MtSession(
             decoded = Data(portnum = PortNum.ADMIN_APP, payload = admin.encodeByteString(), want_response = wantResponse),
         )
         transport.write(ToRadio(packet = packet).encode())
-        if (track) listener.onAdminReport(MtAdminReport(MtAdminReport.State.PENDING, label, restarts = restarts))
+        if (track) listener.onAdminReport(MtAdminReport(MtAdminReport.State.PENDING, label, restart = restart))
         return id
     }
 
@@ -559,7 +559,7 @@ class MtSession(
             Outcome.REFUSED -> MtAdminReport.State.REFUSED
             Outcome.NO_ANSWER -> MtAdminReport.State.NO_ANSWER
         }
-        val report = MtAdminReport(state, write.label, error, write.restarts)
+        val report = MtAdminReport(state, write.label, error, write.restart)
         if (outcome == Outcome.SAVED) {
             configs = write.commit(configs)
             listener.onSettings(configs)
@@ -570,7 +570,7 @@ class MtSession(
         note("admin write $id: $outcome error=$error")
         listener.onAdminAnswer(outcome == Outcome.SAVED)
         listener.onAdminReport(
-            if (left > 0) MtAdminReport(MtAdminReport.State.PENDING, write.label, restarts = write.restarts)
+            if (left > 0) MtAdminReport(MtAdminReport.State.PENDING, write.label, restart = write.restart)
             else failureInBatch ?: report,
         )
         return true
@@ -604,7 +604,7 @@ class MtSession(
         }
         if (gone.isEmpty()) return
         val last = gone.last()
-        listener.onAdminReport(MtAdminReport(MtAdminReport.State.DROPPED, last.label, restarts = gone.any { it.restarts }))
+        listener.onAdminReport(MtAdminReport(MtAdminReport.State.DROPPED, last.label, restart = gone.maxOf { it.restart }))
     }
 
     // ---- settings ----
@@ -623,7 +623,7 @@ class MtSession(
             sendAdmin(
                 result.admin,
                 label = "${field.title} = ${MtFields.display(field, result.configs)}",
-                restarts = field.restarts,
+                restart = field.restart,
                 commit = { it.takePart(field.part, result.configs) },
             )
         }
@@ -789,7 +789,7 @@ class MtSession(
         )
         sendAdmin(
             AdminMessage(set_config = Config(lora = next)),
-            label = "Radio settings from the link", restarts = true,
+            label = "Radio settings from the link", restart = Restart.MAYBE,
             commit = { it.copy(lora = next) },
         )
         return true
@@ -867,7 +867,7 @@ data class MtAdminReport(
     /** A [Routing.Error] value when [state] is REFUSED. */
     val error: Int = 0,
     /** Whether the radio restarts after this write, which takes the link with it. */
-    val restarts: Boolean = false,
+    val restart: Restart = Restart.NO,
 ) {
     enum class State {
         /** Sent; the radio has not answered. */

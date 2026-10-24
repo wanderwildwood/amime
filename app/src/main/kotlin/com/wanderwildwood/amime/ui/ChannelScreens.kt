@@ -28,6 +28,7 @@ import com.mudita.mmd.components.text.TextMMD
 import com.mudita.mmd.components.text_field.TextFieldMMD
 import com.mudita.mmd.components.top_app_bar.TopAppBarMMD
 import com.wanderwildwood.amime.R
+import com.wanderwildwood.amime.link.RadioKind
 import com.wanderwildwood.amime.meshtastic.CHANNEL_NAME_BYTES
 import com.wanderwildwood.amime.meshtastic.ChannelKeys
 import com.wanderwildwood.amime.meshtastic.ImportItem
@@ -104,7 +105,7 @@ fun ChannelsScreen(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             TopAppBarMMD(
-                title = { TextMMD(text = stringResource(R.string.mtx_channels_title)) },
+                title = { BarTitle(stringResource(R.string.mtx_channels_title), RadioKind.MESHTASTIC) },
                 navigationIcon = { BarButton(Icons.Close, stringResource(R.string.conversation_back), onClose) },
             )
         },

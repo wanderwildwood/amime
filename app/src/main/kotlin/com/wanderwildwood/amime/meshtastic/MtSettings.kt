@@ -164,8 +164,8 @@ class Field(
     val help: String?,
     /** Said in the dialog before the change is made, for the ones that can hurt. */
     val warn: String?,
-    /** False for the few changes the radio applies without restarting. */
-    val restarts: Boolean,
+    /** Whether the radio restarts after this change; see [Restart] and [MtRestarts]. */
+    val restart: Restart,
     /** Reads the value from the configs: Int for a choice or number, Boolean, String. Null when not read. */
     val read: (MtConfigs) -> Any?,
     /** Returns the configs with the value changed, or null when the section has not been read. */
@@ -192,18 +192,58 @@ object MtRegions {
     const val ABSOLUTE_MAX = 36
 }
 
+/**
+ * Whether the radio restarts after a settings write. The firmware decides, field by field:
+ * in AdminModule.cpp, handleSetConfig sets a reboot only when certain fields of the section
+ * written differ from what the radio holds, and handleSetModuleConfig reboots for every
+ * module but one. [MAYBE] is for what a firmware version has changed: the LoRa modem
+ * fields restart the radio in 2.7 and apply live in newer builds.
+ */
+enum class Restart { NO, MAYBE, YES }
+
+/** The per-field answers that differ from their section's. The table is the firmware's, read for 2.7.26. */
+object MtRestarts {
+    private val exceptions: Map<String, Restart> = mapOf(
+        // LoRa: only a change to the modem, region, power or slot restarts the radio (2.7.26);
+        // the rest of the section is not compared and applies at once.
+        "lora.hop_limit" to Restart.NO,
+        "lora.tx_enabled" to Restart.NO,
+        "lora.override_duty_cycle" to Restart.NO,
+        "lora.ignore_mqtt" to Restart.NO,
+        "lora.config_ok_to_mqtt" to Restart.NO,
+        // Device: only the role, the rebroadcast mode and the two pins restart it.
+        "device.role" to Restart.YES,
+        "device.rebroadcast_mode" to Restart.YES,
+        // Display: the screen time-out, flip, chip and style restart it; the rest does not.
+        "display.screen_on_secs" to Restart.YES,
+        "display.flip_screen" to Restart.YES,
+        "display.displaymode" to Restart.YES,
+        "display.oled" to Restart.YES,
+    )
+
+    /** Sections whose fields do not restart the radio unless listed above. */
+    private val sectionDefault: Map<String, Restart> = mapOf(
+        "lora" to Restart.MAYBE,
+        "device" to Restart.NO,
+        "display" to Restart.NO,
+    )
+
+    fun of(id: String, fallback: Restart): Restart =
+        exceptions[id] ?: sectionDefault[id.substringBefore('.')] ?: fallback
+}
+
 private class Sect<S>(
     val part: Part,
     val get: (MtConfigs) -> S?,
     val put: (MtConfigs, S) -> MtConfigs,
-    val restarts: Boolean = true,
+    val restart: Restart = Restart.YES,
 ) {
     private fun <V : Any> field(
-        id: String, title: String, kind: Kind, help: String?, warn: String?, restarts: Boolean,
+        id: String, title: String, kind: Kind, help: String?, warn: String?, restart: Restart,
         rd: (S) -> V, wr: (S, V) -> S, guard: ((MtConfigs, Any) -> String?)?,
     ) = Field(
         id = "${part.name.lowercase()}.$id", part = part, title = title, kind = kind, help = help, warn = warn,
-        restarts = restarts,
+        restart = MtRestarts.of("${part.name.lowercase()}.$id", restart),
         read = { c -> get(c)?.let { rd(it) } },
         write = { c, v ->
             val s = get(c)
@@ -216,26 +256,26 @@ private class Sect<S>(
     fun flag(
         id: String, title: String, help: String? = null, warn: String? = null,
         guard: ((MtConfigs, Any) -> String?)? = null, rd: (S) -> Boolean, wr: (S, Boolean) -> S,
-    ) = field(id, title, Kind.Flag, help, warn, restarts, rd, wr, guard)
+    ) = field(id, title, Kind.Flag, help, warn, restart, rd, wr, guard)
 
     fun num(
         id: String, title: String, min: Int, max: Int, unit: String = "", zero: String? = null,
         help: String? = null, warn: String? = null, guard: ((MtConfigs, Any) -> String?)? = null,
         rd: (S) -> Int, wr: (S, Int) -> S,
-    ) = field(id, title, Kind.Num(min, max, unit, zero), help, warn, restarts, rd, wr, guard)
+    ) = field(id, title, Kind.Num(min, max, unit, zero), help, warn, restart, rd, wr, guard)
 
     fun choice(
         id: String, title: String, options: List<Opt>, help: String? = null, warn: String? = null,
         guard: ((MtConfigs, Any) -> String?)? = null, rd: (S) -> Int, wr: (S, Int) -> S,
-    ) = field(id, title, Kind.Choice(options), help, warn, restarts, rd, wr, guard)
+    ) = field(id, title, Kind.Choice(options), help, warn, restart, rd, wr, guard)
 
     fun text(
         id: String, title: String, maxBytes: Int, help: String? = null,
         rd: (S) -> String, wr: (S, String) -> S,
-    ) = field(id, title, Kind.Text(maxBytes), help, null, restarts, rd, wr, null)
+    ) = field(id, title, Kind.Text(maxBytes), help, null, restart, rd, wr, null)
 
     fun info(id: String, title: String, rd: (S) -> String) =
-        field(id, title, Kind.Info, null, null, false, rd, { s, _: String -> s }, null)
+        field(id, title, Kind.Info, null, null, Restart.NO, rd, { s, _: String -> s }, null)
 }
 
 private fun opts(vararg o: Pair<Int, String>) = o.map { Opt(it.first, it.second) }

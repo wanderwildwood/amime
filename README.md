@@ -62,7 +62,8 @@ and forward, serial, alerts, range test, canned messages, neighbour info, detect
 people counter, and MQTT (on or off, and what it is set to, shown). No keys, passwords or
 network names are entered or shown here. Every row opens a dialog that says what the change
 does; a change sends the radio's whole current section with only that field changed, and the
-radio then restarts and the link drops, which the dialog says. Nothing is sent until the radio
+radio restarts only for the settings the firmware restarts it for (read from its source, field
+by field; the dialog says which), and may for the modem ones. Nothing is sent until the radio
 has finished telling Mesh its settings. The settings are one table in
 `meshtastic/MtSettings.kt`; the screens and the tests are written over it.
 
@@ -77,7 +78,7 @@ Meshtastic's protocol definitions are carried unchanged in `app/src/main/proto` 
 
 ## Where this is up to
 
-**Version 0.3.0.** The commands and frames are written against
+**Version 0.3.1.** The commands and frames are written against
 `examples/companion_radio/MyMesh.cpp` in the MeshCore firmware rather than against the protocol
 documentation, for a reason given below. The session — handshake order, draining the message
 queue, matching an acknowledgement to the send that expected it — has no Android in it at all,

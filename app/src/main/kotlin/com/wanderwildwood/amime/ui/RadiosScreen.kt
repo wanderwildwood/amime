@@ -80,7 +80,12 @@ fun RadiosScreen(
             // them used to show. A tap that changes nothing invites a second tap.
             connecting?.let {
                 TextMMD(
-                    text = stringResource(R.string.radios_connecting, it),
+                    text = radios.firstOrNull { r -> r.name == it }?.kind?.let { kind ->
+                        stringResource(
+                            R.string.radios_connecting_kind, it,
+                            stringResource(if (kind == RadioKind.MESHTASTIC) R.string.radio_kind_meshtastic else R.string.radio_kind_meshcore),
+                        )
+                    } ?: stringResource(R.string.radios_connecting, it),
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
                 )

@@ -28,12 +28,14 @@ import com.mudita.mmd.components.text_field.TextFieldMMD
 import com.mudita.mmd.components.top_app_bar.TopAppBarMMD
 import com.wanderwildwood.amime.R
 import com.wanderwildwood.amime.mesh.GeoPoint
+import com.wanderwildwood.amime.link.RadioKind
 import com.wanderwildwood.amime.meshtastic.Field
 import com.wanderwildwood.amime.meshtastic.Kind
 import com.wanderwildwood.amime.meshtastic.MtAdminReport
 import com.wanderwildwood.amime.meshtastic.MtConfigs
 import com.wanderwildwood.amime.meshtastic.MtFields
 import com.wanderwildwood.amime.meshtastic.Part
+import com.wanderwildwood.amime.meshtastic.Restart
 
 /**
  * A write's progress in words: waiting, saved, refused with the radio's reason, unanswered, or
@@ -47,13 +49,19 @@ fun adminNotice(report: MtAdminReport?): String? {
         MtAdminReport.State.SAVED -> {
             val saved = if (report.label.isEmpty()) stringResource(R.string.mts_saved_plain)
             else stringResource(R.string.mts_saved, report.label)
-            if (report.restarts) saved + " " + stringResource(R.string.mts_saved_restart) else saved
+            when (report.restart) {
+                Restart.YES -> saved + " " + stringResource(R.string.mts_saved_restart)
+                Restart.MAYBE -> saved + " " + stringResource(R.string.mts_saved_maybe)
+                Restart.NO -> saved
+            }
         }
         MtAdminReport.State.REFUSED -> stringResource(R.string.mts_not_taken, stringResource(routingFailureText(report.error)))
         MtAdminReport.State.NO_ANSWER -> stringResource(R.string.mts_no_answer)
-        MtAdminReport.State.DROPPED ->
-            if (report.restarts) stringResource(R.string.mts_sent_restart, report.label.ifEmpty { "-" })
-            else stringResource(R.string.mts_dropped)
+        MtAdminReport.State.DROPPED -> when (report.restart) {
+            Restart.YES -> stringResource(R.string.mts_sent_restart, report.label.ifEmpty { "-" })
+            Restart.MAYBE -> stringResource(R.string.mts_dropped_maybe, report.label.ifEmpty { "-" })
+            Restart.NO -> stringResource(R.string.mts_dropped)
+        }
     }
 }
 
@@ -92,7 +100,7 @@ fun RadioSettingsScreen(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             TopAppBarMMD(
-                title = { TextMMD(text = part?.title ?: stringResource(R.string.mts_title)) },
+                title = { BarTitle(part?.title ?: stringResource(R.string.mts_title), RadioKind.MESHTASTIC) },
                 navigationIcon = {
                     BarButton(Icons.Close, stringResource(R.string.conversation_back)) {
                         if (part != null) {
@@ -264,7 +272,13 @@ private fun FieldDialog(field: Field, configs: MtConfigs, onDismiss: () -> Unit,
         }
         Spacer(Modifier.height(8.dp))
         TextMMD(
-            text = stringResource(if (field.restarts) R.string.mts_restart else R.string.mts_no_restart),
+            text = stringResource(
+                when (field.restart) {
+                    Restart.YES -> R.string.mts_restart
+                    Restart.MAYBE -> R.string.mts_restart_maybe
+                    Restart.NO -> R.string.mts_no_restart
+                },
+            ),
             style = MaterialTheme.typography.labelSmall,
         )
         Spacer(Modifier.height(14.dp))

@@ -214,9 +214,17 @@ data class MeshState(
     val mtConfigs: com.wanderwildwood.amime.meshtastic.MtConfigs? = null,
     /** Where the latest Meshtastic settings or channel write stands; null when none was made. */
     val mtAdmin: com.wanderwildwood.amime.meshtastic.MtAdminReport? = null,
+    /** Which screen the latest [mtAdmin] belongs to: the one that was showing when the write was sent. */
+    val mtAdminOwner: NoticeScreen? = null,
+    /** The screen showing now, as far as notices are concerned. */
+    val noticeScreen: NoticeScreen = NoticeScreen.OTHER,
     /** Set when the firmware is too old to be worked with. */
     val oldFirmware: String? = null,
 ) {
+    /** The write notice that belongs on [screen], or null: a notice stays on the screen where it was made. */
+    fun adminNoticeFor(screen: NoticeScreen): com.wanderwildwood.amime.meshtastic.MtAdminReport? =
+        if (mtAdminOwner == screen) mtAdmin else null
+
     fun channel(key: List<Byte>): Channel? = channels.firstOrNull { it.key == key }
 
     /**
@@ -281,3 +289,9 @@ data class Admin(
 
 /** A place, in degrees. */
 data class GeoPoint(val latitude: Double, val longitude: Double)
+
+/**
+ * The groups of screens a notice about a radio write can belong to. A notice is said on the
+ * screen where the change was made, and goes when that screen is left.
+ */
+enum class NoticeScreen { CHANNELS, SETTINGS, OTHER }

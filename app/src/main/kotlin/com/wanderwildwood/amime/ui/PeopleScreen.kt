@@ -81,6 +81,8 @@ fun PeopleScreen(
                         // The node's own name, because on a mesh which radio you are is the
                         // first thing worth knowing and there is nowhere else it would say it.
                         TextMMD(text = state.nodeName ?: stringResource(R.string.app_name))
+                        // Which firmware is on the other end, since the name alone does not say.
+                        TextMMD(text = radioSubtitle(state.radio), style = MaterialTheme.typography.labelSmall)
                         // Only where there is a reading. A node that has not answered yet is
                         // not a node at nothing, and a figure drawn from no reply would say
                         // it was. It matters for a node that leaves the desk.

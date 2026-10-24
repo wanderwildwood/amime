@@ -30,6 +30,7 @@ import com.mudita.mmd.components.buttons.OutlinedButtonMMD
 import com.mudita.mmd.components.text.TextMMD
 import com.mudita.mmd.components.text_field.TextFieldMMD
 import com.mudita.mmd.components.top_app_bar.TopAppBarMMD
+import com.wanderwildwood.amime.link.RadioKind
 import com.wanderwildwood.amime.R
 import com.wanderwildwood.amime.mesh.Delivery
 import com.wanderwildwood.amime.mesh.Message
@@ -68,6 +69,8 @@ fun ConversationScreen(
     actions: @Composable RowScope.() -> Unit = {},
     /** A line above the thread, or null. A Meshtastic person has how far away they are. */
     header: (@Composable () -> Unit)? = null,
+    /** Which kind of radio is connected, said under the title; null says nothing. */
+    radio: RadioKind? = null,
 ) {
     var draft by remember { mutableStateOf("") }
 
@@ -126,7 +129,7 @@ fun ConversationScreen(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             TopAppBarMMD(
-                title = { TextMMD(text = title) },
+                title = { BarTitle(title, radio) },
                 navigationIcon = {
                     BarButton(Icons.Close, stringResource(R.string.conversation_back), onBack)
                 },

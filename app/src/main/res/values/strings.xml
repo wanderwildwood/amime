@@ -21,6 +21,9 @@
     <!-- %1$d is the six-digit PIN the firmware ships with. -->
     <!-- %1$s is the radio's name. -->
     <string name="radios_connecting">Connecting to %1$s.</string>
+    <string name="radios_connecting_kind">Connecting to %1$s (%2$s).</string>
+    <string name="radio_subtitle_meshtastic">Meshtastic radio</string>
+    <string name="radio_subtitle_meshcore">MeshCore radio</string>
     <string name="radios_pairing">Pairing. The PIN is the radio\'s own: a node with a screen shows it, and one without has %1$d until it is changed.</string>
 
     <!-- Everyone the radio knows -->
@@ -299,6 +302,7 @@
     <string name="mts_region_row">Region</string>
     <string name="mts_firmware_note">The radio\'s firmware is updated on a computer, with the Meshtastic web flasher or its docs, not from Mesh.</string>
     <string name="mts_restart">The radio saves this and restarts. The link drops; connect again from the list.</string>
+    <string name="mts_restart_maybe">The radio may restart. If the link drops, connect again from the list.</string>
     <string name="mts_no_restart">The radio keeps this at once.</string>
     <string name="mts_careful">Careful: %1$s</string>
     <string name="mts_cap">This region allows up to %1$d dBm.</string>
@@ -312,6 +316,8 @@
     <string name="mts_saved">Sent: %1$s. The radio saved this.</string>
     <string name="mts_saved_plain">Sent. The radio saved this.</string>
     <string name="mts_saved_restart">The radio restarts; connect again from the list.</string>
+    <string name="mts_saved_maybe">The radio may restart; if the link drops, connect again from the list.</string>
+    <string name="mts_dropped_maybe">Sent: %1$s. The link dropped; the radio may have restarted. Connect again from the list and check the setting.</string>
     <string name="mts_no_answer">The radio did not answer. Try again.</string>
     <string name="mts_not_taken">The radio did not take this. %1$s</string>
     <string name="mts_dropped">The link dropped before the radio answered. Connect again and check the setting.</string>

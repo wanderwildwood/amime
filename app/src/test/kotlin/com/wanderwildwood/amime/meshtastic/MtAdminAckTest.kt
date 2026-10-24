@@ -144,7 +144,7 @@ class MtAdminAckTest {
         r.s.setRegion(Config.LoRaConfig.RegionCode.EU_868.value)
         r.s.onLinkDown()
         assertEquals(MtAdminReport.State.DROPPED, r.last().state)
-        assertTrue(r.last().restarts)
+        assertEquals(Restart.YES, r.last().restart)
         assertFalse(r.s.adminWaiting())
     }
 
@@ -207,5 +207,27 @@ class MtAdminAckTest {
         a.s.change(MtFields.get("lora.hop_limit")!!, 4)
         b.s.change(MtFields.get("lora.hop_limit")!!, 4)
         assertNotEquals(a.lastId(), b.lastId())
+    }
+
+    @Test
+    fun the_report_carries_how_far_the_field_restarts_the_radio() {
+        val r = Rig()
+        r.s.change(MtFields.get("lora.hop_limit")!!, 4)
+        assertEquals(Restart.NO, r.last().restart)
+        r.answer(r.lastId(), Routing.Error.NONE)
+        assertEquals(Restart.NO, r.last().restart)
+
+        r.s.change(MtFields.get("lora.modem_preset")!!, 4)
+        r.answer(r.lastId(), Routing.Error.NONE)
+        assertEquals(Restart.MAYBE, r.last().restart)
+    }
+
+    @Test
+    fun a_link_that_drops_after_a_hop_limit_write_does_not_blame_a_restart() {
+        val r = Rig()
+        r.s.change(MtFields.get("lora.hop_limit")!!, 4)
+        r.s.onLinkDown()
+        assertEquals(MtAdminReport.State.DROPPED, r.last().state)
+        assertEquals(Restart.NO, r.last().restart)
     }
 }

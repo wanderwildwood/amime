@@ -438,6 +438,9 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Everything in this thread has been seen, on the way in and again on the way out. */
+    /** Which screen is showing, so a write's notice goes when its screen is left. */
+    fun noticeScreen(screen: com.wanderwildwood.amime.mesh.NoticeScreen) = store.noticeScreen(screen)
+
     fun markRead(person: Person) = store.markRead(person.prefix)
 
     /**
