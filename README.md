@@ -78,7 +78,7 @@ Meshtastic's protocol definitions are carried unchanged in `app/src/main/proto` 
 
 ## Where this is up to
 
-**Version 0.3.1.** The commands and frames are written against
+**Version 0.3.2.** The commands and frames are written against
 `examples/companion_radio/MyMesh.cpp` in the MeshCore firmware rather than against the protocol
 documentation, for a reason given below. The session — handshake order, draining the message
 queue, matching an acknowledgement to the send that expected it — has no Android in it at all,

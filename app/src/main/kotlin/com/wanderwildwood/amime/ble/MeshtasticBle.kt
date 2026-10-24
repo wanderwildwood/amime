@@ -78,22 +78,26 @@ class MeshtasticBle(
         onStartFailed = { fail(R.string.ble_refused) },
         onStarted = { attempt ->
             log("queue: start #$attempt $inFlight (depth ${queue.depth})")
-            handler.postDelayed(
-                {
-                    val what = inFlight
-                    log("timeout: #$attempt still waiting for $what after ${PATIENCE_MS} ms")
-                    if (queue.abandonIfStuck(attempt)) {
-                        if (what == "read FromRadio" && listener.onReadStalled()) {
-                            log("timeout: read abandoned, session asked to read again")
-                        } else {
-                            fail(R.string.ble_no_answer)
-                        }
+            val watchdog = Runnable {
+                if (!queue.isInFlight(attempt)) return@Runnable
+                val what = inFlight
+                log("timeout: #$attempt still waiting for $what after ${PATIENCE_MS} ms")
+                if (queue.abandonIfStuck(attempt)) {
+                    if (what == "read FromRadio" && listener.onReadStalled()) {
+                        log("timeout: read abandoned, session asked to read again")
+                    } else {
+                        fail(R.string.ble_no_answer)
                     }
-                },
-                PATIENCE_MS,
-            )
+                }
+            }
+            watchdogs[attempt] = watchdog
+            handler.postDelayed(watchdog, PATIENCE_MS)
         },
+        onFinished = { attempt -> watchdogs.remove(attempt)?.let { handler.removeCallbacks(it) } },
     )
+
+    /** The pending stall watchdog of each attempt in flight; cancelled when its operation ends. */
+    private val watchdogs = HashMap<Long, Runnable>()
 
     fun connect(device: BluetoothDevice) {
         log("connect: bond state ${device.bondState}")

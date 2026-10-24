@@ -22,6 +22,8 @@ class OperationQueue(
      * still in flight. See [abandonIfStuck].
      */
     private val onStarted: (Long) -> Unit = {},
+    /** Told that the attempt in flight is over, however it ended, so its watchdog can stop. */
+    private val onFinished: (Long) -> Unit = {},
 ) {
 
     /**
@@ -59,7 +61,7 @@ class OperationQueue(
      * because one write was rejected by the far end.
      */
     fun completeCurrent() {
-        running = null
+        finishRunning()
         startNext()
     }
 
@@ -75,16 +77,25 @@ class OperationQueue(
      * Returns whether anything was abandoned, so a caller can say so rather than guess.
      */
     fun abandonIfStuck(which: Long): Boolean {
-        if (running == null || attempt != which) return false
-        running = null
+        if (!isInFlight(which)) return false
+        finishRunning()
         startNext()
         return true
     }
 
+    /** Whether attempt [which] is still the operation in flight: the only time a watchdog has anything to say. */
+    fun isInFlight(which: Long): Boolean = running != null && attempt == which
+
     /** Drop everything, on disconnect. Nothing queued survives a connection. */
     fun clear() {
         pending.clear()
+        finishRunning()
+    }
+
+    private fun finishRunning() {
+        if (running == null) return
         running = null
+        onFinished(attempt)
     }
 
     private fun startNext() {
@@ -96,7 +107,7 @@ class OperationQueue(
             if (!next.start()) {
                 // No callback is coming for an operation that never started, so completing it
                 // here is the only thing that keeps the queue moving.
-                running = null
+                finishRunning()
                 onStartFailed(next)
             }
         }

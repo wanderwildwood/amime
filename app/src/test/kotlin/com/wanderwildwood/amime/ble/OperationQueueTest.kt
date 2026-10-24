@@ -147,4 +147,33 @@ class OperationQueueTest {
         assertFalse(queue.abandonIfStuck(1))
     }
 
+
+    @Test
+    fun `a watchdog is told when its attempt ends and has nothing to say afterwards`() {
+        val finished = mutableListOf<Long>()
+        lateinit var queue: OperationQueue
+        queue = OperationQueue(onFinished = { finished += it })
+
+        queue.enqueue { true }
+        assertTrue(queue.isInFlight(1))
+        queue.completeCurrent()
+
+        assertEquals(listOf(1L), finished)
+        assertFalse("a finished read is not outstanding", queue.isInFlight(1))
+        assertFalse(queue.abandonIfStuck(1))
+        assertEquals("abandoning nothing finishes nothing", listOf(1L), finished)
+    }
+
+    @Test
+    fun `clearing and refusals also end the attempt`() {
+        val finished = mutableListOf<Long>()
+        val queue = OperationQueue(onFinished = { finished += it })
+
+        queue.enqueue { false }
+        assertEquals(listOf(1L), finished)
+        queue.enqueue { true }
+        queue.clear()
+        assertEquals(listOf(1L, 2L), finished)
+        assertFalse(queue.isInFlight(2))
+    }
 }
