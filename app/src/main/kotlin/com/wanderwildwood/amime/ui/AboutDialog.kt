@@ -5,6 +5,9 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,64 +38,96 @@ import com.wanderwildwood.amime.R
 @Composable
 fun AboutDialog(onDismiss: () -> Unit) {
     EInkDialog(onDismiss = onDismiss) {
-        TextMMD(
-            text = stringResource(R.string.about_version, BuildConfig.VERSION_NAME),
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Medium,
-        )
-        Spacer(Modifier.height(14.dp))
-        TextMMD(
-            text = stringResource(R.string.about_what),
-            style = MaterialTheme.typography.labelSmall,
-        )
-        Spacer(Modifier.height(14.dp))
-        TextMMD(
-            text = stringResource(R.string.about_reach),
-            style = MaterialTheme.typography.labelSmall,
-        )
-        Spacer(Modifier.height(14.dp))
-        TextMMD(
-            text = stringResource(R.string.about_while_closed),
-            style = MaterialTheme.typography.labelSmall,
-        )
-        Spacer(Modifier.height(14.dp))
-        TextMMD(
-            text = stringResource(R.string.about_licence),
-            style = MaterialTheme.typography.labelSmall,
-        )
-        Spacer(Modifier.height(14.dp))
-        TextMMD(
-            text = stringResource(R.string.about_meshcore),
-            style = MaterialTheme.typography.labelSmall,
-        )
-        Spacer(Modifier.height(14.dp))
-        TextMMD(
-            text = stringResource(R.string.about_meshtastic),
-            style = MaterialTheme.typography.labelSmall,
-        )
-        Spacer(Modifier.height(14.dp))
-        TextMMD(
-            text = stringResource(R.string.about_firmware),
-            style = MaterialTheme.typography.labelSmall,
-        )
-        Spacer(Modifier.height(14.dp))
-        TextMMD(
-            text = stringResource(R.string.about_icons),
-            style = MaterialTheme.typography.labelSmall,
-        )
+        // The text can be taller than the screen; it moves inside its own box so Close stays
+        // at the foot, always in reach (Mudita's review found Close pushed off the bottom).
+        Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+            TextMMD(
+                text = stringResource(R.string.about_version, BuildConfig.VERSION_NAME),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+            )
+            Spacer(Modifier.height(14.dp))
+            TextMMD(
+                text = stringResource(R.string.about_what),
+                style = MaterialTheme.typography.labelSmall,
+            )
+            Spacer(Modifier.height(14.dp))
+            TextMMD(
+                text = stringResource(R.string.about_reach),
+                style = MaterialTheme.typography.labelSmall,
+            )
+            Spacer(Modifier.height(14.dp))
+            TextMMD(
+                text = stringResource(R.string.about_while_closed),
+                style = MaterialTheme.typography.labelSmall,
+            )
+            Spacer(Modifier.height(14.dp))
+            TextMMD(
+                text = stringResource(R.string.about_privacy),
+                style = MaterialTheme.typography.labelSmall,
+            )
+            Spacer(Modifier.height(14.dp))
+            TextMMD(
+                text = stringResource(R.string.about_terms),
+                style = MaterialTheme.typography.labelSmall,
+            )
+            Spacer(Modifier.height(14.dp))
+            TextMMD(
+                text = stringResource(R.string.about_licence),
+                style = MaterialTheme.typography.labelSmall,
+            )
+            Spacer(Modifier.height(14.dp))
+            TextMMD(
+                text = stringResource(R.string.about_meshcore),
+                style = MaterialTheme.typography.labelSmall,
+            )
+            Spacer(Modifier.height(14.dp))
+            TextMMD(
+                text = stringResource(R.string.about_meshtastic),
+                style = MaterialTheme.typography.labelSmall,
+            )
+            Spacer(Modifier.height(14.dp))
+            TextMMD(
+                text = stringResource(R.string.about_firmware),
+                style = MaterialTheme.typography.labelSmall,
+            )
+            Spacer(Modifier.height(14.dp))
+            TextMMD(
+                text = stringResource(R.string.about_icons),
+                style = MaterialTheme.typography.labelSmall,
+            )
 
-        Spacer(Modifier.height(14.dp))
-        TextMMD(text = "github.com/wanderwildwood/amime", style = MaterialTheme.typography.labelSmall)
+            Spacer(Modifier.height(14.dp))
+            SourceLink()
 
-        Spacer(Modifier.height(14.dp))
-        Llama()
-
+            Spacer(Modifier.height(14.dp))
+            Llama()
+        }
         Spacer(Modifier.height(18.dp))
         OutlinedButtonMMD(
             onClick = onDismiss,
             modifier = Modifier.fillMaxWidth().height(48.dp),
         ) { TextMMD(text = stringResource(R.string.about_close), style = MaterialTheme.typography.bodySmall) }
     }
+}
+
+/** The source code's address, which opens it: the licence promises the source, so it is a link. */
+@Composable
+private fun SourceLink() {
+    val context = LocalContext.current
+    TextMMD(
+        text = "github.com/wanderwildwood/amime",
+        style = MaterialTheme.typography.labelSmall,
+        modifier = Modifier
+            .clickable {
+                runCatching {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/wanderwildwood/amime")))
+                }.onFailure {
+                    Toast.makeText(context, context.getString(R.string.about_no_browser), Toast.LENGTH_SHORT).show()
+                }
+            }
+            .padding(vertical = 4.dp),
+    )
 }
 
 /**
