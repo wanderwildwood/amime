@@ -48,6 +48,12 @@ class RadioScanner(private val adapter: BluetoothAdapter?) {
          * a separate ending rather than a log line.
          */
         REFUSED,
+
+        /**
+         * It was cut short: the screen went away, or a connection began. It looked at
+         * nothing like the whole of its time, so it says nothing about an empty room.
+         */
+        STOPPED,
     }
 
     private var callback: ScanCallback? = null
@@ -114,10 +120,11 @@ class RadioScanner(private val adapter: BluetoothAdapter?) {
                 .build(),
             scanCallback,
         )
-        handler.postDelayed(::stop, durationMs)
+        handler.postDelayed({ end(Ending.FINISHED) }, durationMs)
     }
 
-    fun stop() = end(Ending.FINISHED)
+    /** Cut the scan short, or give the reason it cannot go on (Bluetooth switched off). */
+    fun stop(how: Ending = Ending.STOPPED) = end(how)
 
     private fun end(how: Ending) {
         val scanCallback = callback ?: return

@@ -44,8 +44,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            ThemeMMD(colorScheme = monochrome) {
-                Mesh()
+            // A steady cursor: a blinking one is a repaint twice a second on an e-ink panel.
+            androidx.compose.runtime.CompositionLocalProvider(
+                androidx.compose.ui.platform.LocalCursorBlinkEnabled provides false,
+            ) {
+                ThemeMMD(colorScheme = monochrome) {
+                    Mesh()
+                }
             }
         }
     }
@@ -70,17 +75,39 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
     val problem by viewModel.problem.collectAsStateWithLifecycle()
     val pairing by viewModel.pairing.collectAsStateWithLifecycle()
     val connecting by viewModel.connecting.collectAsStateWithLifecycle()
+    val searched by viewModel.searched.collectAsStateWithLifecycle()
+    val context0 = androidx.compose.ui.platform.LocalContext.current
+    // The permission is Android's to give, and Android stops showing the question after two
+    // refusals; the app's own settings page is then the only place left to give it.
+    var permissionMissing by remember { mutableStateOf(false) }
 
     val ask = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { granted ->
-        if (granted.values.all { it }) viewModel.findRadios() else viewModel.bluetoothRefused()
+        if (granted.values.all { it }) {
+            permissionMissing = false
+            viewModel.findRadios()
+        } else {
+            permissionMissing = true
+            viewModel.bluetoothRefused()
+        }
     }
+    val bluetoothPermissions = arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN)
 
     LaunchedEffect(Unit) {
-        ask.launch(
-            arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN),
-        )
+        ask.launch(bluetoothPermissions)
+    }
+
+    // Leaving the app ends a scan that was cut short, and coming back from Android's settings
+    // is where a permission given there is noticed.
+    androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_STOP) {
+        viewModel.stopScanning()
+    }
+    androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+        if (permissionMissing && viewModel.mayUseBluetooth()) {
+            permissionMissing = false
+            viewModel.findRadios()
+        }
     }
 
     // Administering a repeater takes over the screen: it is a different job from messaging,
@@ -295,7 +322,24 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
             problem = problem,
             pairing = pairing,
             connecting = connecting,
-            onScan = viewModel::findRadios,
+            searched = searched,
+            onScan = {
+                // Ask again when the permission is missing; Android answers at once, without a
+                // dialog, once it has been refused twice, and the settings button is then the way.
+                if (viewModel.mayUseBluetooth()) viewModel.findRadios() else ask.launch(bluetoothPermissions)
+            },
+            onOpenSettings = if (permissionMissing) {
+                {
+                    runCatching {
+                        context0.startActivity(
+                            android.content.Intent(
+                                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                android.net.Uri.fromParts("package", context0.packageName, null),
+                            ),
+                        )
+                    }
+                }
+            } else null,
             onConnect = viewModel::connect,
         )
     } else if (person != null) {

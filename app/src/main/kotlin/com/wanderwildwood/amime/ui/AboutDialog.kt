@@ -62,15 +62,14 @@ fun AboutDialog(onDismiss: () -> Unit) {
                 style = MaterialTheme.typography.labelSmall,
             )
             Spacer(Modifier.height(14.dp))
-            TextMMD(
-                text = stringResource(R.string.about_privacy),
-                style = MaterialTheme.typography.labelSmall,
-            )
+            Heading(R.string.about_privacy_title)
+            Para(R.string.about_privacy_net)
+            Para(R.string.about_privacy_air)
+            Para(R.string.about_privacy_open)
+            Para(R.string.about_privacy_kept)
             Spacer(Modifier.height(14.dp))
-            TextMMD(
-                text = stringResource(R.string.about_terms),
-                style = MaterialTheme.typography.labelSmall,
-            )
+            Heading(R.string.about_terms_title)
+            Para(R.string.about_terms)
             Spacer(Modifier.height(14.dp))
             TextMMD(
                 text = stringResource(R.string.about_licence),
@@ -93,6 +92,11 @@ fun AboutDialog(onDismiss: () -> Unit) {
             )
             Spacer(Modifier.height(14.dp))
             TextMMD(
+                text = stringResource(R.string.about_libraries),
+                style = MaterialTheme.typography.labelSmall,
+            )
+            Spacer(Modifier.height(14.dp))
+            TextMMD(
                 text = stringResource(R.string.about_icons),
                 style = MaterialTheme.typography.labelSmall,
             )
@@ -109,6 +113,22 @@ fun AboutDialog(onDismiss: () -> Unit) {
             modifier = Modifier.fillMaxWidth().height(48.dp),
         ) { TextMMD(text = stringResource(R.string.about_close), style = MaterialTheme.typography.bodySmall) }
     }
+}
+
+@Composable
+private fun Heading(@androidx.annotation.StringRes id: Int) {
+    TextMMD(
+        text = stringResource(id),
+        style = MaterialTheme.typography.bodyMedium,
+        fontWeight = FontWeight.Medium,
+    )
+    Spacer(Modifier.height(6.dp))
+}
+
+@Composable
+private fun Para(@androidx.annotation.StringRes id: Int) {
+    TextMMD(text = stringResource(id), style = MaterialTheme.typography.labelSmall)
+    Spacer(Modifier.height(8.dp))
 }
 
 /** The source code's address, which opens it: the licence promises the source, so it is a link. */

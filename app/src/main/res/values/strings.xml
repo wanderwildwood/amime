@@ -14,6 +14,8 @@
     <string name="radios_title">Radios</string>
     <string name="radios_looking_sentence">Looking.</string>
     <string name="radios_none">No radio found. It may be out of range, or switched off.</string>
+    <string name="radios_not_looked">Not looking yet. Press Look again.</string>
+    <string name="radios_open_settings">Open this app\'s settings</string>
     <string name="radios_look_again">Look again</string>
     <string name="radios_looking">Looking</string>
     <!-- The signal strength of a radio that has not been connected to yet, in dBm. -->
@@ -124,12 +126,18 @@
     <string name="about_what">A companion for a MeshCore or Meshtastic radio. Messages go over Bluetooth to the radio beside you and out through the mesh.</string>
     <string name="about_reach">Nothing here touches the internet. There is no account, no server and no carrier — only the radio, and whatever it can reach.</string>
     <string name="about_while_closed">Messages that arrive while this is closed wait on the radio and appear when you open it. Nothing here runs in the background, and nothing interrupts you.</string>
-    <string name="about_privacy">Privacy: your messages and contacts stay on this phone and your radio. Bluetooth is used only to talk to your radio. There are no ads, no analytics and no tracking.</string>
-    <string name="about_terms">Terms: Mesh is free software. It comes with no warranty; use it at your own risk, and don\'t rely on it alone in an emergency.</string>
+    <string name="about_privacy_title">Privacy</string>
+    <string name="about_privacy_net">Mesh has no internet access at all. It uses Bluetooth only to talk to your radio.</string>
+    <string name="about_privacy_air">What you send leaves your radio over the mesh, and other people\'s radios receive it. A direct message is encrypted to the person you write to, so only they can read it. A channel message is encrypted with that channel\'s key, and anyone who has the key can read it. Public\'s key is built into every MeshCore radio, a #hashtag channel\'s key comes from its name, and Meshtastic\'s default channel key is widely known, so anyone can read those. Only a private channel, with a key you shared yourself, is limited to the people you gave the key to.</string>
+    <string name="about_privacy_open">Not hidden from anyone in range: that two radios are talking, your radio\'s name and the adverts it sends, and a fixed position you save to a Meshtastic radio.</string>
+    <string name="about_privacy_kept">Your conversations stay on this phone and your contacts on your radio. There are no ads, no analytics and no tracking.</string>
+    <string name="about_terms_title">Terms</string>
+    <string name="about_terms">Mesh is free software under the GNU General Public License v3. It comes with no warranty: use it at your own risk. A message can be late, lost or never reach anyone, and a radio can be out of range. Do not rely on it alone in an emergency; call your local emergency number.</string>
     <string name="about_licence">GNU General Public License v3 only</string>
     <string name="about_meshcore">MeshCore\'s protocol, implemented from reading its source. MeshCore itself is MIT and none of it is copied here.</string>
     <string name="about_meshtastic">Meshtastic\'s protocol definitions, unchanged, GPL-3.0, © Meshtastic LLC. The radio does the encryption.</string>
-    <string name="about_firmware">A radio\'s firmware is updated on a computer, with the Meshtastic web flasher or its documentation, not from Mesh. QR codes are drawn with ZXing, Apache 2.0.</string>
+    <string name="about_firmware">A radio\'s firmware is updated on a computer, with the Meshtastic web flasher or its documentation, not from Mesh.</string>
+    <string name="about_libraries">Built with ZXing (Apache 2.0), the Meshtastic protocol definitions (GPL-3.0), the Lato typeface (SIL Open Font Licence 1.1), AndroidX (Apache 2.0) and Kotlin (Apache 2.0).</string>
     <string name="about_icons">Icons from Material Symbols, Apache 2.0</string>
     <string name="about_llama">feed the llamas</string>
     <string name="about_no_browser">There is no browser on this phone to open that with.</string>
@@ -325,7 +333,7 @@
     <string name="mts_dropped">The link dropped before the radio answered. Connect again and check the setting.</string>
     <string name="mts_refused_prefix">Not sent: %1$s</string>
     <string name="mts_fixed_set">Use my typed position as the radio\'s fixed position</string>
-    <string name="mts_fixed_set_help">Pins the radio to the position typed in this app. Type it from the people list first.</string>
+    <string name="mts_fixed_set_help">Pins the radio to the position typed in this app. Type it from the people list first. The radio then shares that position over the mesh.</string>
     <string name="mts_fixed_clear">Stop using a fixed position</string>
     <string name="mts_sort_nearest">Sort: nearest first (%1$s)</string>
 </resources>

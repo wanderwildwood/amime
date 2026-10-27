@@ -157,7 +157,7 @@ fun LeaveChannelAction(onLeave: () -> Unit) {
     var armed by remember { mutableStateOf(false) }
     LaunchedEffect(armed) {
         if (armed) {
-            delay(4_000)
+            delay(6_000)
             armed = false
         }
     }

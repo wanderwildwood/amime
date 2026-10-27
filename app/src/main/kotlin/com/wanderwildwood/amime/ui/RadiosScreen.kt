@@ -40,7 +40,9 @@ fun RadiosScreen(
     problem: String?,
     pairing: Boolean,
     connecting: String?,
+    searched: Boolean,
     onScan: () -> Unit,
+    onOpenSettings: (() -> Unit)?,
     onConnect: (MeshViewModel.Radio) -> Unit,
 ) {
     var aboutOpen by remember { mutableStateOf(false) }
@@ -114,7 +116,9 @@ fun RadiosScreen(
                             problem != null -> ""
                             // Two different things look the same from here, and neither is
                             // worth guessing between on the reader's behalf.
-                            else -> stringResource(R.string.radios_none)
+                            // Only a scan that ran its whole time can say the room is empty.
+                            searched -> stringResource(R.string.radios_none)
+                            else -> stringResource(R.string.radios_not_looked)
                         },
                         style = MaterialTheme.typography.titleSmall,
                         modifier = Modifier.padding(horizontal = 24.dp),
@@ -135,6 +139,14 @@ fun RadiosScreen(
                 }
             }
 
+            if (onOpenSettings != null) {
+                OutlinedButtonMMD(
+                    onClick = onOpenSettings,
+                    modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 12.dp),
+                ) {
+                    TextMMD(text = stringResource(R.string.radios_open_settings), style = MaterialTheme.typography.titleSmall)
+                }
+            }
             OutlinedButtonMMD(
                 onClick = onScan,
                 enabled = !scanning && connecting == null,

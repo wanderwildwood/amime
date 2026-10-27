@@ -6,7 +6,10 @@ import android.app.Application
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.util.Log
 import androidx.annotation.StringRes
@@ -247,7 +250,7 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
      * Both or neither: the app cannot find a radio without SCAN and cannot talk to one
      * without CONNECT, so having one of them is the same as having none.
      */
-    private fun mayUseBluetooth(): Boolean = listOf(
+    fun mayUseBluetooth(): Boolean = listOf(
         Manifest.permission.BLUETOOTH_CONNECT,
         Manifest.permission.BLUETOOTH_SCAN,
     ).all {
@@ -297,6 +300,8 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
         // A fresh look clears the last complaint: whatever it was, this is the answer to
         // whether it is still true.
         _problem.value = null
+        bluetoothOffShown = false
+        _searched.value = false
 
         // Asked for rather than assumed. Everything below throws SecurityException without
         // it, and a phone where it was refused would otherwise show an empty list and let
@@ -321,9 +326,12 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
             done = { ending ->
                 _scanning.value = false
                 when (ending) {
-                    RadioScanner.Ending.FINISHED -> Unit
-                    RadioScanner.Ending.NO_BLUETOOTH ->
+                    RadioScanner.Ending.FINISHED -> _searched.value = true
+                    RadioScanner.Ending.STOPPED -> Unit
+                    RadioScanner.Ending.NO_BLUETOOTH -> {
                         _problem.value = say(R.string.problem_bluetooth_off)
+                        bluetoothOffShown = true
+                    }
                     RadioScanner.Ending.REFUSED ->
                         _problem.value = say(R.string.problem_scan_refused)
                 }
@@ -344,6 +352,48 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
     fun stopScanning() {
         scanner.stop()
         _scanning.value = false
+    }
+
+    private val _searched = MutableStateFlow(false)
+
+    /**
+     * Whether a scan has run its whole time since the screen last came up. "No radio found" is
+     * only true after one; a scan cut short by leaving the app found nothing because it did not look.
+     */
+    val searched: StateFlow<Boolean> = _searched.asStateFlow()
+
+    /** The Bluetooth switch, heard as it moves rather than read when a scan starts. */
+    private val bluetoothSwitch = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)) {
+                BluetoothAdapter.STATE_TURNING_OFF, BluetoothAdapter.STATE_OFF -> {
+                    // A scan under a switch that went off never says so: it just ends, and
+                    // reads as an empty room.
+                    if (_scanning.value) {
+                        scanner.stop(RadioScanner.Ending.NO_BLUETOOTH)
+                    }
+                    if (!state.value.ready) {
+                        _scanning.value = false
+                        _searched.value = false
+                        _problem.value = say(R.string.problem_bluetooth_off)
+                        bluetoothOffShown = true
+                    }
+                }
+                BluetoothAdapter.STATE_ON -> if (bluetoothOffShown) {
+                    bluetoothOffShown = false
+                    _problem.value = null
+                    if (!state.value.ready && _connecting.value == null && mayUseBluetooth()) findRadios()
+                }
+            }
+        }
+    }
+    private var bluetoothOffShown = false
+
+    init {
+        ContextCompat.registerReceiver(
+            getApplication(), bluetoothSwitch, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
     }
 
     /**
@@ -552,6 +602,7 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
         ackWatch?.cancel()
         batteryWatch?.cancel()
         scanner.stop()
+        runCatching { getApplication<Application>().unregisterReceiver(bluetoothSwitch) }
         transport.disconnect()
         mtTransport.disconnect()
         // The writer runs in this scope and the scope is about to be cancelled, so anything

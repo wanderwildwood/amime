@@ -22,7 +22,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -228,7 +227,6 @@ private fun MessageRow(message: Message, channel: Boolean) {
             TextMMD(
                 text = body,
                 style = MaterialTheme.typography.titleSmall,
-                fontWeight = if (message.mine) FontWeight.Normal else FontWeight.Bold,
             )
             message.note(channel)?.let { TextMMD(text = it, style = MaterialTheme.typography.labelSmall) }
         }

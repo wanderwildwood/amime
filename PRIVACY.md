@@ -11,7 +11,8 @@ is worth understanding before you trust it with anything.
 
 For distances to Meshtastic nodes Mesh uses the position the radio reports for itself, or one
 you type in. A typed position is kept on this phone and nowhere else, and can be replaced at
-any time. Mesh asks for no location permission and never reads the phone's location.
+any time. If you then choose to save it to a Meshtastic radio as its fixed position, that is
+the radio's position from then on, and the radio shares it over the mesh. Mesh asks for no location permission and never reads the phone's location.
 
 ## Channels and keys
 
@@ -69,7 +70,13 @@ LoRa. There is no account, no server and no carrier anywhere in that path.
 Three things about the air are the mesh's doing rather than this app's, and all three are
 worth knowing:
 
-- **The body of a message is encrypted** to the contact it is for, with a secret derived from
+- **Who can read it depends on where it was sent.** A direct message is encrypted to the one
+  person it is for. A channel message is encrypted with the channel's key, so everyone who
+  holds that key can read it: Public's key is built into every MeshCore radio, a #hashtag
+  channel's key is derived from its name, and Meshtastic's default channel key is widely
+  known, so those are readable by anyone. Only a private channel whose key you shared yourself
+  is limited to the people you gave the key to.
+- **The body of a direct MeshCore message is encrypted** to the contact it is for, with a secret derived from
   their key and yours, and carries a MAC so it cannot be altered on the way. A repeater
   carrying it cannot read it.
 - **Who it is between is not encrypted.** A short hash of the sender and a short hash of the
