@@ -1,6 +1,5 @@
 package com.wanderwildwood.amime.ui
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -40,7 +39,7 @@ fun ChannelRow(channel: Channel, unread: Int, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .stateBorder(settled = true)
-            .clickable(onClick = onClick)
+            .clickableTarget(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
         TextMMD(text = channel.name, style = MaterialTheme.typography.bodyMedium)
@@ -63,7 +62,7 @@ fun JoinChannelRow(enabled: Boolean, onClick: () -> Unit) {
         style = MaterialTheme.typography.bodyMedium,
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = enabled, onClick = onClick)
+            .clickableTarget(enabled = enabled, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 14.dp),
     )
 }
@@ -165,7 +164,7 @@ fun LeaveChannelAction(onLeave: () -> Unit) {
         text = stringResource(if (armed) R.string.channel_leave_armed else R.string.channel_leave),
         style = MaterialTheme.typography.bodySmall,
         modifier = Modifier
-            .clickable {
+            .clickableTarget {
                 if (armed) onLeave() else armed = true
             }
             .padding(horizontal = 12.dp, vertical = 14.dp),

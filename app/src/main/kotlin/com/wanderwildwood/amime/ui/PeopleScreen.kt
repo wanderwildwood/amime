@@ -1,6 +1,5 @@
 package com.wanderwildwood.amime.ui
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -113,7 +112,7 @@ fun PeopleScreen(
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable(onClick = onDismissProblem)
+                        .clickableTarget(onClick = onDismissProblem)
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                 )
             }
@@ -124,7 +123,7 @@ fun PeopleScreen(
                     TextMMD(
                         text = stringResource(R.string.mt_region_unset),
                         style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.fillMaxWidth().clickable(onClick = onRegion)
+                        modifier = Modifier.fillMaxWidth().clickableTarget(onClick = onRegion)
                             .padding(horizontal = 12.dp, vertical = 8.dp),
                     )
                 }
@@ -132,7 +131,7 @@ fun PeopleScreen(
                     TextMMD(
                         text = stringResource(R.string.mt_no_position),
                         style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.fillMaxWidth().clickable(onClick = onPosition)
+                        modifier = Modifier.fillMaxWidth().clickableTarget(onClick = onPosition)
                             .padding(horizontal = 12.dp, vertical = 8.dp),
                     )
                 }
@@ -386,7 +385,7 @@ private fun PersonRow(
             .fillMaxWidth()
             // Solid where the radio knows a route, dotted where it only floods to reach them.
             .stateBorder(settled = person.pathKnown)
-            .clickable(onClick = onClick)
+            .clickableTarget(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
         TextMMD(text = person.label, style = MaterialTheme.typography.bodyMedium)
@@ -507,7 +506,7 @@ fun PersonHeader(person: Person, here: GeoPoint?) {
             text = stringResource(R.string.mt_open_maps),
             style = MaterialTheme.typography.labelSmall,
             modifier = Modifier
-                .clickable {
+                .clickableTarget {
                     val uri = android.net.Uri.parse(Geo.geoUri(lat, lon, person.label))
                     runCatching {
                         context.startActivity(

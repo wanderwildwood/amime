@@ -1,6 +1,5 @@
 package com.wanderwildwood.amime.ui
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -173,7 +172,7 @@ private fun RadioRow(radio: MeshViewModel.Radio, enabled: Boolean, onClick: () -
             // Solid for a radio this phone is already paired with; dotted for one it has only
             // just heard, which will want a PIN before it will say anything.
             .stateBorder(settled = radio.bonded)
-            .clickable(enabled = enabled, onClick = onClick)
+            .clickableTarget(enabled = enabled, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
         TextMMD(text = radio.name, style = MaterialTheme.typography.bodyMedium)

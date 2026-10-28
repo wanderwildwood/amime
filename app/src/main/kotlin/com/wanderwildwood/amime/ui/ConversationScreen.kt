@@ -1,7 +1,6 @@
 package com.wanderwildwood.amime.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -151,7 +150,7 @@ fun ConversationScreen(
                                 style = MaterialTheme.typography.labelSmall,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { onSendAgain(message) }
+                                    .clickableTarget { onSendAgain(message) }
                                     .padding(horizontal = 12.dp, vertical = 6.dp),
                             )
                         }

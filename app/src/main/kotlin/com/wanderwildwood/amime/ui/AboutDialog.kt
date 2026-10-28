@@ -4,7 +4,6 @@ import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
@@ -139,7 +138,7 @@ private fun SourceLink() {
         text = "github.com/wanderwildwood/amime",
         style = MaterialTheme.typography.labelSmall,
         modifier = Modifier
-            .clickable {
+            .clickableTarget {
                 runCatching {
                     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/wanderwildwood/amime")))
                 }.onFailure {
@@ -179,14 +178,14 @@ private fun Llama() {
             text = "wanderthe.dev",
             style = MaterialTheme.typography.labelSmall,
             modifier = Modifier
-                .clickable { open("https://wanderthe.dev") }
+                .clickableTarget { open("https://wanderthe.dev") }
                 .padding(vertical = 4.dp),
         )
         Spacer(Modifier.width(6.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
-                .clickable { open("https://square.link/u/AGu8oT10") }
+                .clickableTarget { open("https://square.link/u/AGu8oT10") }
                 .padding(vertical = 4.dp),
         ) {
             Image(

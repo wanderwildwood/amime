@@ -1,7 +1,6 @@
 package com.wanderwildwood.amime.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -85,7 +84,7 @@ fun RegionScreen(current: Int?, onChoose: (Int) -> Unit, onClose: () -> Unit) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .stateBorder(settled = code.value == current)
-                            .clickable { picked = code }
+                            .clickableTarget { picked = code }
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                     ) {
                         TextMMD(text = regionName(code.value), style = MaterialTheme.typography.bodyMedium)

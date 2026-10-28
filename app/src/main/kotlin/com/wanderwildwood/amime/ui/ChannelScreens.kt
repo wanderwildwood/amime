@@ -1,7 +1,6 @@
 package com.wanderwildwood.amime.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -65,7 +64,7 @@ internal fun BorderedRow(title: String, line: String?, settled: Boolean = true, 
         modifier = Modifier
             .fillMaxWidth()
             .stateBorder(settled = settled)
-            .let { if (onClick != null) it.clickable(onClick = onClick) else it }
+            .let { if (onClick != null) it.clickableTarget(onClick = onClick) else it }
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
         TextMMD(text = title, style = MaterialTheme.typography.bodyMedium)

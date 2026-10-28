@@ -4,5 +4,12 @@
         <item name="android:windowBackground">@android:color/white</item>
         <item name="android:statusBarColor">@android:color/white</item>
         <item name="android:windowLightStatusBar">true</item>
+
+        <!-- No splash screen: Android 12 shows one anyway, so it draws nothing (a transparent
+             icon on white) instead of the launcher icon, which costs a full-panel refresh on
+             e-ink. minSdk is 31, so the base theme is enough. -->
+        <item name="android:windowSplashScreenBackground">@android:color/white</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_nothing</item>
+        <item name="android:windowSplashScreenAnimationDuration">0</item>
     </style>
 </resources>
