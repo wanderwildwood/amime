@@ -24,6 +24,15 @@
     <!-- No INTERNET permission, and there will not be one. Everything this app knows comes
          off the radio over Bluetooth; a mesh app that phoned home would be a contradiction. -->
 
+    <queries>
+        <!-- Browsers: a web address opens in a real one, never in the system's bare WebView shell. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="false"
         android:icon="@drawable/ic_launcher_mudita"

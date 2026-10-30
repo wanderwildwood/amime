@@ -149,7 +149,7 @@ fun JoinChannelDialog(onDismiss: () -> Unit, onJoin: (String, String) -> String?
 
 /**
  * Leaving, in the channel's own top bar. It asks in its own face, as the house does — the
- * first tap arms it and says so, a second leaves, and it disarms itself after four seconds.
+ * first tap arms it and says so, a second leaves, and it disarms itself after six seconds.
  */
 @Composable
 fun LeaveChannelAction(onLeave: () -> Unit) {

@@ -513,6 +513,8 @@ fun PersonHeader(person: Person, here: GeoPoint?) {
                             android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
                                 .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
                         )
+                    }.onFailure {
+                        android.widget.Toast.makeText(context, context.getString(R.string.mt_no_map_app), android.widget.Toast.LENGTH_LONG).show()
                     }
                 }
                 .padding(vertical = 10.dp),
