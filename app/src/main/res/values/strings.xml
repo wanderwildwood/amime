@@ -134,13 +134,8 @@
     <string name="about_terms_title">Terms</string>
     <string name="about_terms">Mesh is free software under the GNU General Public License, version 3 only. It comes with no warranty of any kind: use it at your own risk. A message can be late, lost or never reach anyone, and a radio can be out of range. Do not rely on it alone in an emergency; call your local emergency number. Mesh is not made or endorsed by Meshtastic LLC or MeshCore.</string>
     <string name="about_licence">GNU General Public License v3 only</string>
-    <string name="about_meshcore">MeshCore\'s protocol, implemented from reading its source. MeshCore itself is MIT and none of it is copied here.</string>
-    <string name="about_meshtastic">Meshtastic\'s protocol definitions, unchanged, GPL-3.0, © Meshtastic LLC. The radio does the encryption.</string>
     <string name="about_firmware">A radio\'s firmware is updated on a computer, with the Meshtastic web flasher or its documentation, not from Mesh.</string>
-    <string name="about_libraries">Built with ZXing (Apache 2.0), the Meshtastic protocol definitions (GPL-3.0), the Lato typeface (SIL Open Font Licence 1.1), AndroidX (Apache 2.0) and Kotlin (Apache 2.0).</string>
-    <string name="about_icons">Icons from Material Symbols, Apache 2.0</string>
     <string name="mt_no_map_app">There is no map app on this phone to open that position with.</string>
-    <string name="about_llama">feed the llamas</string>
     <string name="about_no_browser">There is no browser on this phone to open that with.</string>
     <string name="about_close">Close</string>
 
@@ -349,4 +344,5 @@
     <string name="licences_full_apache">Apache License 2.0 (full text)</string>
     <string name="licences_full_mit">MIT licence (full text)</string>
     <string name="licences_full_ofl">SIL Open Font Licence 1.1 (full text)</string>
+    <string name="about_feed_the_llamas">Feed the llamas</string>
 </resources>
