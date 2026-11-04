@@ -1,0 +1,14 @@
+{
+  "uniqueId": "meshcore",
+  "name": "MeshCore protocol",
+  "description": "How Mesh talks to a MeshCore radio, written for this app from reading MeshCore's source; none of its code is copied.",
+  "developers": [
+    {
+      "name": "the MeshCore authors"
+    }
+  ],
+  "website": "https://github.com/meshcore-dev/MeshCore",
+  "licenses": [
+    "meshcore-mit"
+  ]
+}

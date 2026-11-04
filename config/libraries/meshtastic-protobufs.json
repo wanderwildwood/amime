@@ -1,0 +1,14 @@
+{
+  "uniqueId": "meshtastic-protobufs",
+  "name": "Meshtastic protocol definitions",
+  "description": "The Meshtastic .proto files at tag v2.8.1, unchanged; the build turns them into the Kotlin code that reads and writes a Meshtastic radio's messages.",
+  "developers": [
+    {
+      "name": "Meshtastic LLC"
+    }
+  ],
+  "website": "https://github.com/meshtastic/protobufs",
+  "licenses": [
+    "GPL-3.0-only"
+  ]
+}
