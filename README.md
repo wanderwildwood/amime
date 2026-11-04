@@ -60,7 +60,7 @@ preset, hop limit, transmit power capped to the region's limit, transmit on or o
 slot, duty-cycle override and a few more), names, device (role, what to pass on, node-info
 interval and others), position and GPS (including pinning a fixed position from the position
 typed in this app), Bluetooth pairing, power, screen, Wi-Fi (on or off only), telemetry, store
-and forward, serial, alerts, range test, canned messages, neighbour info, detection sensor,
+and forward, serial, alerts, range test, canned messages, neighbor info, detection sensor,
 people counter, and MQTT (on or off, and what it is set to, shown). No keys, passwords or
 network names are entered or shown here. Every row opens a dialog that says what the change
 does; a change sends the radio's whole current section with only that field changed, and the
@@ -250,7 +250,7 @@ For updates without doing this by hand, add this repository to
 **The application id is settled** — updates install over what you have, keeping anything the
 app has stored.
 
-## Licence
+## License
 
 GPL-3.0-only. MeshCore itself is MIT, and is not vendored here — only its protocol is
 implemented, from reading its source. The Meshtastic protocol definitions in
