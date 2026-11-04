@@ -29,6 +29,7 @@ import com.wanderwildwood.amime.ui.adminNotice
 import com.wanderwildwood.amime.ui.PasteLinkDialog
 import com.wanderwildwood.amime.ui.RadioSettingsScreen
 import com.wanderwildwood.amime.ui.RegionScreen
+import com.wanderwildwood.amime.ui.houseTypography
 import com.wanderwildwood.amime.ui.regionName
 import com.wanderwildwood.amime.meshtastic.ImportPlan
 import com.wanderwildwood.amime.meshtastic.MtChannelInfo
@@ -49,7 +50,7 @@ class MainActivity : ComponentActivity() {
             androidx.compose.runtime.CompositionLocalProvider(
                 androidx.compose.ui.platform.LocalCursorBlinkEnabled provides false,
             ) {
-                ThemeMMD(colorScheme = monochrome) {
+                ThemeMMD(colorScheme = monochrome, typography = houseTypography) {
                     ArmedScope { Mesh() }
                 }
             }
