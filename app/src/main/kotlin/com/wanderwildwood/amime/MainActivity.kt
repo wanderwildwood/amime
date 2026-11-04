@@ -39,6 +39,7 @@ import com.wanderwildwood.amime.ui.ConversationScreen
 import com.wanderwildwood.amime.ui.PeopleScreen
 import com.wanderwildwood.amime.ui.RadiosScreen
 import com.wanderwildwood.amime.ui.monochrome
+import com.wanderwildwood.amime.ui.ArmedScope
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -49,7 +50,7 @@ class MainActivity : ComponentActivity() {
                 androidx.compose.ui.platform.LocalCursorBlinkEnabled provides false,
             ) {
                 ThemeMMD(colorScheme = monochrome) {
-                    Mesh()
+                    ArmedScope { Mesh() }
                 }
             }
         }

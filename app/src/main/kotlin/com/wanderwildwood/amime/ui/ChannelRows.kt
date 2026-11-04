@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -24,7 +23,6 @@ import com.mudita.mmd.components.text.TextMMD
 import com.mudita.mmd.components.text_field.TextFieldMMD
 import com.wanderwildwood.amime.R
 import com.wanderwildwood.amime.mesh.Channel
-import kotlinx.coroutines.delay
 
 /**
  * One channel in the list, above the people.
@@ -149,17 +147,12 @@ fun JoinChannelDialog(onDismiss: () -> Unit, onJoin: (String, String) -> String?
 
 /**
  * Leaving, in the channel's own top bar. It asks in its own face, as the house does — the
- * first tap arms it and says so, a second leaves, and it disarms itself after six seconds.
+ * first tap arms it and says so, a second leaves. It stays armed, with no timer, until the
+ * next other touch, Back or leaving the screen (shared Armed.kt).
  */
 @Composable
 fun LeaveChannelAction(onLeave: () -> Unit) {
-    var armed by remember { mutableStateOf(false) }
-    LaunchedEffect(armed) {
-        if (armed) {
-            delay(6_000)
-            armed = false
-        }
-    }
+    var armed by rememberArmedFlag()
     TextMMD(
         text = stringResource(if (armed) R.string.channel_leave_armed else R.string.channel_leave),
         style = MaterialTheme.typography.bodySmall,
