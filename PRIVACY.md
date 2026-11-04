@@ -102,3 +102,29 @@ system log.
 The llama at the foot of the About opens `square.link/u/AGu8oT10` in whatever browser you
 have. That is a hand-off: this app does not fetch the page, and it learns nothing about
 whether you went there.
+
+<!-- shared-about privacy section -->
+## Who we are
+
+Mesh is made by wander wildwood, an independent developer: one person, not a company. wander wildwood is the data controller for anything the app itself handles, and that is very little. Mesh keeps what you put in it on your phone and sends nothing to the developer, so the developer holds no data about you.
+
+## How to contact us
+
+Write to email@wanderthe.dev about your data, this policy or anything else. The same address is in the app, under About.
+
+## Your rights
+
+If you are in the EU, the EEA or the UK, the GDPR gives you the right to:
+
+- see the personal data held about you (access)
+- have it corrected (rectification) or deleted (erasure)
+- limit how it is used (restriction)
+- object to its use (objection)
+- get a copy to take elsewhere (portability)
+- withdraw your consent at any time, where something rests on it
+- complain to a data protection supervisory authority, for example the one where you live
+
+Similar laws elsewhere, such as the CCPA in California, give you the right to know, delete and correct, and to opt out of the sale or sharing of your data. Nothing from Mesh is sold or shared.
+
+Since Mesh keeps what it stores only on your phone, you can exercise most of these rights yourself: remove a channel from your radio or stop using a fixed position in the app, clear the app's data in Android's settings, or uninstall the app, which deletes all of it. For anything you cannot do yourself, write to the address above.
+<!-- /shared-about privacy section -->
