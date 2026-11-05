@@ -93,6 +93,7 @@ fun ChannelsScreen(
     notice: String?,
     onEdit: (MtChannelInfo) -> Unit,
     onAdd: () -> Unit,
+    canScan: Boolean,
     onScan: () -> Unit,
     onPaste: () -> Unit,
     onShow: () -> Unit,
@@ -147,7 +148,8 @@ fun ChannelsScreen(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                HouseButton(stringResource(R.string.mtx_scan), Modifier.weight(1f), ready, onScan)
+                // Only when something on the phone answers the scan request.
+                if (canScan) HouseButton(stringResource(R.string.mtx_scan), Modifier.weight(1f), ready, onScan)
                 HouseButton(stringResource(R.string.mtx_paste), Modifier.weight(1f), ready, onPaste)
             }
             Spacer(Modifier.height(8.dp))

@@ -500,9 +500,17 @@ fun PersonHeader(person: Person, here: GeoPoint?) {
     val lon = person.longitude ?: return
     val context = androidx.compose.ui.platform.LocalContext.current
     val away = awayText(here, person)
+    // The link shows only when some app on the phone opens geo: positions.
+    val canMap = remember(context) {
+        context.packageManager.resolveActivity(
+            android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("geo:0,0")),
+            android.content.pm.PackageManager.MATCH_DEFAULT_ONLY,
+        ) != null
+    }
+    if (away == null && !canMap) return
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
         if (away != null) TextMMD(text = away, style = MaterialTheme.typography.labelSmall)
-        TextMMD(
+        if (canMap) TextMMD(
             text = stringResource(R.string.mt_open_maps),
             style = MaterialTheme.typography.labelSmall,
             modifier = Modifier

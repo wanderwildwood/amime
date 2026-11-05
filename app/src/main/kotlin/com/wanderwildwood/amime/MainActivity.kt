@@ -157,8 +157,14 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
             if (text != null) readLink(text)
         }
     }
+    val canScan = remember(context) {
+        context.packageManager.resolveActivity(
+            android.content.Intent(SCAN_ACTION),
+            android.content.pm.PackageManager.MATCH_DEFAULT_ONLY,
+        ) != null
+    }
     val startScan = {
-        val intent = android.content.Intent("com.google.zxing.client.android.SCAN")
+        val intent = android.content.Intent(SCAN_ACTION)
             .putExtra("SCAN_MODE", "QR_CODE_MODE")
             .putExtra("PROMPT_MESSAGE", context.getString(R.string.mtx_scan_prompt))
         try {
@@ -178,6 +184,7 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
                     notice = channelNotice ?: adminNotice(state.adminNoticeFor(NoticeScreen.CHANNELS)),
                     onEdit = { channelNotice = null; page = MtPage.Edit(it) },
                     onAdd = { channelNotice = null; page = MtPage.Edit(null) },
+                    canScan = canScan,
                     onScan = startScan,
                     onPaste = { pasting = true },
                     onShow = { page = MtPage.Qr },
@@ -412,3 +419,6 @@ private sealed interface MtPage {
     data object Qr : MtPage
     data object Settings : MtPage
 }
+
+/** The standard ZXing scan request; the Camera app and most QR scanners answer it. */
+private const val SCAN_ACTION = "com.google.zxing.client.android.SCAN"

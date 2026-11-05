@@ -31,6 +31,15 @@
             <category android:name="android.intent.category.BROWSABLE" />
             <data android:scheme="https" />
         </intent>
+        <!-- Map apps: "Open in maps" above a person shows only when one answers a geo: link. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="geo" />
+        </intent>
+        <!-- QR scanners (the Camera app among them): Scan shows only when one answers. -->
+        <intent>
+            <action android:name="com.google.zxing.client.android.SCAN" />
+        </intent>
     </queries>
 
     <application
