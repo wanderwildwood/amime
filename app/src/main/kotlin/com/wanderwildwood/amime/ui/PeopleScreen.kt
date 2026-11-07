@@ -144,7 +144,7 @@ fun PeopleScreen(
             if (channels.isEmpty() && state.people.isEmpty()) {
                 Empty(state, Modifier.weight(1f))
             } else {
-                PagedColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                PagedColumn(modifier = Modifier.weight(1f).fillMaxWidth(), showCutRow = true) {
                     items(channels.size) { index ->
                         val channel = channels[index]
                         ChannelRow(

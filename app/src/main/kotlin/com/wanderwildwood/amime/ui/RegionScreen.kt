@@ -77,7 +77,7 @@ fun RegionScreen(current: Int?, onChoose: (Int) -> Unit, onClose: () -> Unit) {
                 style = MaterialTheme.typography.labelSmall,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
             )
-            PagedColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            PagedColumn(modifier = Modifier.weight(1f).fillMaxWidth(), showCutRow = true) {
                 items(CHOICES.size) { index ->
                     val code = CHOICES[index]
                     Column(

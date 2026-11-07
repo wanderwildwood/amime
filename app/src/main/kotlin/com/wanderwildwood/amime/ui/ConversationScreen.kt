@@ -137,7 +137,7 @@ fun ConversationScreen(
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             header?.invoke()
-            PagedColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth()) {
+            PagedColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth(), showCutRow = true) {
                 items(messages.size) { index ->
                     val message = messages[index]
                     // One item rather than two emissions, so that the offer stays on the

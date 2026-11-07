@@ -112,7 +112,7 @@ fun ChannelsScreen(
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             notice?.let { Note(it) }
-            PagedColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            PagedColumn(modifier = Modifier.weight(1f).fillMaxWidth(), showCutRow = true) {
                 item { Note(stringResource(R.string.mtx_channels_note)) }
                 if (!ready) item { Note(stringResource(R.string.mtx_not_ready)) }
                 items(channels.size) { i ->
@@ -211,7 +211,7 @@ fun ChannelEditScreen(
         },
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-            PagedColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            PagedColumn(modifier = Modifier.weight(1f).fillMaxWidth(), showCutRow = true) {
                 item {
                     Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                         TextMMD(text = stringResource(R.string.mtx_name_label), style = MaterialTheme.typography.labelSmall)
@@ -343,7 +343,7 @@ fun ChannelImportScreen(
         },
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-            PagedColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            PagedColumn(modifier = Modifier.weight(1f).fillMaxWidth(), showCutRow = true) {
                 items(plan.items.size) { i ->
                     val item = plan.items[i]
                     BorderedRow(

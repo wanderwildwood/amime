@@ -124,7 +124,7 @@ fun RadiosScreen(
                     )
                 }
             } else {
-                PagedColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                PagedColumn(modifier = Modifier.weight(1f).fillMaxWidth(), showCutRow = true) {
                     items(radios.size) { index ->
                         RadioRow(
                             radio = radios[index],

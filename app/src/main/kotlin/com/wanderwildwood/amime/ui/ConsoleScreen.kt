@@ -109,6 +109,7 @@ fun ConsoleScreen(
                 PagedColumn(
                     state = listState,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
+                    showCutRow = true,
                 ) {
                     items(admin.lines.size) { index -> Line(admin.lines[index]) }
                 }
