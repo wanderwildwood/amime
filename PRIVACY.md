@@ -53,7 +53,7 @@ it no longer holds, so if this app did not write them down they would be gone th
 Android reclaimed the process.
 
 **Uninstalling the app takes them with it.** There is no copy anywhere else, no export, and
-nothing is synchronised. Contacts are not stored here at all — they live on the radio and are
+nothing is synchronized. Contacts are not stored here at all — they live on the radio and are
 read from it at every connection.
 
 One thing is stored somewhere else, briefly, and it is not this app's doing. A message that

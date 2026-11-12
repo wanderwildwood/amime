@@ -83,7 +83,7 @@ Meshtastic's protocol definitions are carried unchanged in `app/src/main/proto` 
 **Version 0.3.2.** The commands and frames are written against
 `examples/companion_radio/MyMesh.cpp` in the MeshCore firmware rather than against the protocol
 documentation, for a reason given below. The session — handshake order, draining the message
-queue, matching an acknowledgement to the send that expected it — has no Android in it at all,
+queue, matching an acknowledgment to the send that expected it — has no Android in it at all,
 so those rules are tested without a radio or a phone.
 
 Against a ThinkNode M5 on companion firmware: the handshake, the contact sync, reading and
@@ -143,17 +143,17 @@ The thing this app has to say that an ordinary messaging app does not is how far
 actually got, because on a mesh that is a real question with a long answer.
 
 A message is **dotted** while the outcome is genuinely unknown — handed to the radio, or
-accepted and waiting on an acknowledgement — and **solid** once it is settled. Settled means
+accepted and waiting on an acknowledgment — and **solid** once it is settled. Settled means
 the outcome is *known*, not that it was good: a refusal is solid, and so is the radio
-answering that no acknowledgement is coming at all. Leaving that last one dotted would be the
+answering that no acknowledgment is coming at all. Leaving that last one dotted would be the
 screen claiming something is still in flight when the radio has already said it is not.
 
 Waiting has to end somewhere, and nothing outside this app ends it. The radio hands back its
-own estimate of how long an acknowledgement could take — it knows the airtime, the spreading
+own estimate of how long an acknowledgment could take — it knows the airtime, the spreading
 factor and the length of the path, and this app knows none of those — and then, when that
 estimate runs out, does nothing with it: `onSendTimeout()` in the companion firmware is an
 empty function. So the app keeps the time itself, and a message nobody answered stops saying
-it is waiting for an answer. That is not the same as saying it failed, and an acknowledgement
+it is waiting for an answer. That is not the same as saying it failed, and an acknowledgment
 that turns up late is still accepted and still settles it.
 
 The two remaining states are about this app rather than the mesh: a message that was still in
@@ -195,7 +195,7 @@ Messages are written to a plain file of tab-separated lines in the app's own sto
 the radio does not keep a copy: a message it has handed over is a message it no longer holds,
 so an app that kept them only in memory would lose every one of them the next time Android
 reclaimed the process. A message that was still in flight when that happened comes back in a
-state of its own rather than as one still waiting — the acknowledgement it wanted went past
+state of its own rather than as one still waiting — the acknowledgment it wanted went past
 while nothing was listening, and saying it is still pending would be a claim nobody can make.
 
 Nothing else is stored. Contacts come off the radio at every connection, which is where they
