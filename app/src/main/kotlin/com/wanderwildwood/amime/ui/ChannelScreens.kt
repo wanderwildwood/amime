@@ -432,7 +432,7 @@ fun ChannelQrScreen(
             when {
                 link == null -> Note(stringResource(R.string.mtx_qr_empty))
                 !fits -> Note(stringResource(R.string.mtx_qr_toolong))
-                else -> QrCode(link, Modifier.padding(8.dp))
+                else -> QrCode(link, Modifier.padding(8.dp).keepColors())
             }
             Note(stringResource(R.string.mtx_qr_warn))
             BorderedRow(
