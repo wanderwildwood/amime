@@ -542,7 +542,8 @@ fun PersonHeader(person: Person, here: GeoPoint?) {
                                 .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
                         )
                     }.onFailure {
-                        android.widget.Toast.makeText(context, context.getString(R.string.mt_no_map_app), android.widget.Toast.LENGTH_LONG).show()
+                        // Along the foot until the next press, not a toast that goes by itself.
+                        Notice.say(context.getString(R.string.mt_no_map_app))
                     }
                 }
                 .padding(vertical = 10.dp),

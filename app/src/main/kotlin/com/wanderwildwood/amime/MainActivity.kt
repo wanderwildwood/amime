@@ -41,6 +41,9 @@ import com.wanderwildwood.amime.ui.PeopleScreen
 import com.wanderwildwood.amime.ui.RadiosScreen
 import com.wanderwildwood.amime.ui.monochrome
 import com.wanderwildwood.amime.ui.ArmedScope
+import com.wanderwildwood.amime.ui.Notice
+import com.wanderwildwood.amime.ui.NoticeStrip
+import com.wanderwildwood.amime.ui.onEachPress
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -51,10 +54,25 @@ class MainActivity : ComponentActivity() {
                 androidx.compose.ui.platform.LocalCursorBlinkEnabled provides false,
             ) {
                 ThemeMMD(colorScheme = monochrome, typography = houseTypography) {
-                    ArmedScope { Mesh() }
+                    ArmedScope {
+                        // A notice along the foot stays until the next press (see Notice).
+                        androidx.compose.foundation.layout.Box(
+                            androidx.compose.ui.Modifier.onEachPress { Notice.clear() },
+                        ) {
+                            Mesh()
+                            NoticeStrip(
+                                androidx.compose.ui.Modifier.align(androidx.compose.ui.Alignment.BottomCenter),
+                            )
+                        }
+                    }
                 }
             }
         }
+    }
+
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        Notice.pressed(event)
+        return super.dispatchKeyEvent(event)
     }
 }
 
