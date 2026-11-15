@@ -36,6 +36,13 @@ import com.wanderwildwood.amime.meshtastic.KeyKind
 import com.wanderwildwood.amime.meshtastic.MtChannelInfo
 import com.wanderwildwood.amime.meshtastic.MtSession
 import okio.ByteString
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.input.ImeAction
 
 @Composable
 internal fun keyKindText(kind: KeyKind): String = stringResource(
@@ -390,14 +397,26 @@ fun ChannelImportScreen(
 @Composable
 fun PasteLinkDialog(onDismiss: () -> Unit, onRead: (String) -> Unit) {
     var text by remember { mutableStateOf("") }
+    val field = remember { FocusRequester() }
     EInkDialog(onDismiss = onDismiss) {
+        // The field is what the dialog is for: it takes the focus as it opens and the keyboard
+        // comes up. Asked from inside the dialog, a frame after it is drawn: the field lives in
+        // the dialog's own window, which a request from the screen beneath does not reach.
+        val keyboardNow = LocalSoftwareKeyboardController.current
+        LaunchedEffect(Unit) {
+            withFrameNanos { }
+            runCatching { field.requestFocus() }
+            keyboardNow?.show()
+        }
         TextMMD(text = stringResource(R.string.mtx_paste_title), style = MaterialTheme.typography.bodyLarge)
         Spacer(Modifier.height(10.dp))
         TextMMD(text = stringResource(R.string.mtx_paste_label), style = MaterialTheme.typography.labelSmall)
         TextFieldMMD(
             value = text, onValueChange = { text = it },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false),
-            modifier = Modifier.fillMaxWidth(),
+            // Done on the keyboard reads the link.
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { if (text.isNotBlank()) onRead(text) }),
+            modifier = Modifier.fillMaxWidth().focusRequester(field),
         )
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -25,6 +25,14 @@ import com.mudita.mmd.components.text.TextMMD
 import com.mudita.mmd.components.top_app_bar.TopAppBarMMD
 import com.wanderwildwood.amime.R
 import org.meshtastic.proto.Config.LoRaConfig.RegionCode
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.input.ImeAction
 
 /** The regions a Meshtastic radio can be set to, the United States first. */
 private val CHOICES: List<RegionCode> =
@@ -126,21 +134,37 @@ fun PositionDialog(onDismiss: () -> Unit, onSet: (Double, Double) -> Unit) {
     var lon by remember { mutableStateOf("") }
     val latValue = lat.trim().toDoubleOrNull()?.takeIf { it in -90.0..90.0 }
     val lonValue = lon.trim().toDoubleOrNull()?.takeIf { it in -180.0..180.0 }
+    // Next goes from latitude to longitude, and Done there is Set.
+    val latField = remember { FocusRequester() }
+    val lonField = remember { FocusRequester() }
     EInkDialog(onDismiss = onDismiss) {
         TextMMD(text = stringResource(R.string.mt_position_title), style = MaterialTheme.typography.bodyLarge)
+        // The field is what the dialog is for: it takes the focus as it opens and the keyboard
+        // comes up. Asked from inside the dialog, a frame after it is drawn: the field lives in
+        // the dialog's own window, which a request from the screen beneath does not reach.
+        val keyboardNow = LocalSoftwareKeyboardController.current
+        LaunchedEffect(Unit) {
+            withFrameNanos { }
+            runCatching { latField.requestFocus() }
+            keyboardNow?.show()
+        }
         Spacer(Modifier.height(10.dp))
         TextMMD(text = stringResource(R.string.mt_position_help), style = MaterialTheme.typography.labelSmall)
         Spacer(Modifier.height(10.dp))
         TextMMD(text = stringResource(R.string.mt_position_lat), style = MaterialTheme.typography.labelSmall)
         com.mudita.mmd.components.text_field.TextFieldMMD(
             value = lat, onValueChange = { lat = it }, singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+            keyboardActions = KeyboardActions(onNext = { lonField.requestFocus() }),
+            modifier = Modifier.fillMaxWidth().focusRequester(latField),
         )
         Spacer(Modifier.height(8.dp))
         TextMMD(text = stringResource(R.string.mt_position_lon), style = MaterialTheme.typography.labelSmall)
         com.mudita.mmd.components.text_field.TextFieldMMD(
             value = lon, onValueChange = { lon = it }, singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { if (latValue != null && lonValue != null) onSet(latValue, lonValue) }),
+            modifier = Modifier.fillMaxWidth().focusRequester(lonField),
         )
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

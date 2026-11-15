@@ -33,6 +33,7 @@ import com.wanderwildwood.amime.R
 import com.wanderwildwood.amime.mesh.Delivery
 import com.wanderwildwood.amime.mesh.Message
 import com.wanderwildwood.amime.protocol.Sizes
+import androidx.compose.foundation.layout.imePadding
 
 /**
  * One thread.
@@ -135,7 +136,10 @@ fun ConversationScreen(
             )
         },
     ) { padding ->
-        Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+        // The window gives up room to the keyboard (adjustResize in the manifest) instead of
+        // sliding the bar up under the status bar; the field and Send stay above the keys and the
+        // list gives up the room. imePadding covers a window that is not resized for it.
+        Column(modifier = Modifier.padding(padding).fillMaxSize().imePadding()) {
             header?.invoke()
             PagedColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth(), showCutRow = true) {
                 items(messages.size) { index ->

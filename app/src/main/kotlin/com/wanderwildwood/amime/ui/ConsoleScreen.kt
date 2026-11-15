@@ -31,6 +31,7 @@ import com.mudita.mmd.components.top_app_bar.TopAppBarMMD
 import com.wanderwildwood.amime.R
 import com.wanderwildwood.amime.mesh.Admin
 import com.wanderwildwood.amime.mesh.ConsoleLine
+import androidx.compose.foundation.layout.imePadding
 
 /**
  * Administering a repeater over the mesh.
@@ -73,7 +74,10 @@ fun ConsoleScreen(
             )
         },
     ) { padding ->
-        Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+        // The window gives up room to the keyboard (adjustResize in the manifest) instead of
+        // sliding the bar up under the status bar; the field and Send stay above the keys and the
+        // list gives up the room. imePadding covers a window that is not resized for it.
+        Column(modifier = Modifier.padding(padding).fillMaxSize().imePadding()) {
             // The state of the login is worth a line of its own, because until it is in there
             // is nothing to be done here and no way to tell that from a slow answer.
             TextMMD(

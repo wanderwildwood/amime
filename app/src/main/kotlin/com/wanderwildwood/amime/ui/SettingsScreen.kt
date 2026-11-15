@@ -36,6 +36,13 @@ import com.wanderwildwood.amime.meshtastic.MtConfigs
 import com.wanderwildwood.amime.meshtastic.MtFields
 import com.wanderwildwood.amime.meshtastic.Part
 import com.wanderwildwood.amime.meshtastic.Restart
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 
 /**
  * A write's progress in words: waiting, saved, refused with the radio's reason, unanswered, or
@@ -214,8 +221,20 @@ private fun FieldDialog(field: Field, configs: MtConfigs, onDismiss: () -> Unit,
     val refusal = value?.let { MtFields.refusal(field, it, configs) }
     val optionWarn = (kind as? Kind.Choice)?.options?.firstOrNull { it.value == choice }?.warn
     val warn = optionWarn ?: field.warn
+    val typed = remember { FocusRequester() }
+    val set = { if (value != null && refusal == null) onSet(value) }
 
     EInkDialog(onDismiss = onDismiss) {
+        // A number or a word to type: its field takes the focus as the dialog opens, and Done
+        // on the keyboard is Set. Asked from inside the dialog, a frame after it is drawn.
+        if (kind is Kind.Num || kind is Kind.Text) {
+            val keyboardNow = LocalSoftwareKeyboardController.current
+            LaunchedEffect(Unit) {
+                withFrameNanos { }
+                runCatching { typed.requestFocus() }
+                keyboardNow?.show()
+            }
+        }
         TextMMD(text = field.title, style = MaterialTheme.typography.bodyLarge)
         field.help?.let {
             Spacer(Modifier.height(6.dp))
@@ -242,8 +261,9 @@ private fun FieldDialog(field: Field, configs: MtConfigs, onDismiss: () -> Unit,
             is Kind.Num -> {
                 TextFieldMMD(
                     value = text, onValueChange = { text = it }, singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { set() }),
+                    modifier = Modifier.fillMaxWidth().focusRequester(typed),
                 )
                 val unit = if (kind.unit.isEmpty()) "" else " ${kind.unit}"
                 TextMMD(text = stringResource(R.string.mts_range, kind.min, kind.max, unit), style = MaterialTheme.typography.labelSmall)
@@ -258,7 +278,9 @@ private fun FieldDialog(field: Field, configs: MtConfigs, onDismiss: () -> Unit,
             }
             is Kind.Text -> TextFieldMMD(
                 value = text, onValueChange = { text = it }, singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { set() }),
+                modifier = Modifier.fillMaxWidth().focusRequester(typed),
             )
             Kind.Info -> Unit
         }

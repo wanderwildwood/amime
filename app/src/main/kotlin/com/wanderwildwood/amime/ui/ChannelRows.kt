@@ -23,6 +23,13 @@ import com.mudita.mmd.components.text.TextMMD
 import com.mudita.mmd.components.text_field.TextFieldMMD
 import com.wanderwildwood.amime.R
 import com.wanderwildwood.amime.mesh.Channel
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.input.ImeAction
 
 /**
  * One channel in the list, above the people.
@@ -77,8 +84,24 @@ fun JoinChannelDialog(onDismiss: () -> Unit, onJoin: (String, String) -> String?
     var name by remember { mutableStateOf("") }
     var key by remember { mutableStateOf("") }
     var refusal by remember { mutableStateOf<String?>(null) }
+    val join = {
+        refusal = onJoin(name, key)
+        if (refusal == null) onDismiss()
+    }
+    // Next goes from the name to the key, and Done there is Join.
+    val nameField = remember { FocusRequester() }
+    val keyField = remember { FocusRequester() }
 
     EInkDialog(onDismiss = onDismiss) {
+        // The field is what the dialog is for: it takes the focus as it opens and the keyboard
+        // comes up. Asked from inside the dialog, a frame after it is drawn: the field lives in
+        // the dialog's own window, which a request from the screen beneath does not reach.
+        val keyboardNow = LocalSoftwareKeyboardController.current
+        LaunchedEffect(Unit) {
+            withFrameNanos { }
+            runCatching { nameField.requestFocus() }
+            keyboardNow?.show()
+        }
         TextMMD(
             text = stringResource(R.string.channel_join),
             style = MaterialTheme.typography.bodyLarge,
@@ -94,9 +117,10 @@ fun JoinChannelDialog(onDismiss: () -> Unit, onJoin: (String, String) -> String?
                 name = it
                 refusal = null
             },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().focusRequester(nameField),
             singleLine = true,
-            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false),
+            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, imeAction = ImeAction.Next),
+            keyboardActions = KeyboardActions(onNext = { keyField.requestFocus() }),
         )
         Spacer(Modifier.height(14.dp))
         TextMMD(
@@ -109,9 +133,10 @@ fun JoinChannelDialog(onDismiss: () -> Unit, onJoin: (String, String) -> String?
                 key = it
                 refusal = null
             },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().focusRequester(keyField),
             singleLine = true,
-            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false),
+            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { if (name.isNotBlank()) join() }),
         )
         refusal?.let {
             Spacer(Modifier.height(10.dp))
@@ -129,10 +154,7 @@ fun JoinChannelDialog(onDismiss: () -> Unit, onJoin: (String, String) -> String?
                 )
             }
             OutlinedButtonMMD(
-                onClick = {
-                    refusal = onJoin(name, key)
-                    if (refusal == null) onDismiss()
-                },
+                onClick = { join() },
                 enabled = name.isNotBlank(),
                 modifier = Modifier.weight(1f).height(48.dp),
             ) {

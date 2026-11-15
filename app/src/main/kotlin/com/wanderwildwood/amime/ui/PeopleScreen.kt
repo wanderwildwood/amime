@@ -39,6 +39,13 @@ import com.wanderwildwood.amime.mesh.Geo
 import com.wanderwildwood.amime.mesh.GeoPoint
 import com.wanderwildwood.amime.mesh.MeshState
 import com.wanderwildwood.amime.mesh.Person
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.input.ImeAction
 
 /**
  * Everyone the radio knows about.
@@ -288,8 +295,18 @@ fun PeopleScreen(
 private fun LoginDialog(person: Person, onDismiss: () -> Unit, onLogIn: (String) -> Unit) {
     var password by remember { mutableStateOf("") }
     var shown by remember { mutableStateOf(false) }
+    val field = remember { FocusRequester() }
 
     EInkDialog(onDismiss = onDismiss) {
+        // The field is what the dialog is for: it takes the focus as it opens and the keyboard
+        // comes up. Asked from inside the dialog, a frame after it is drawn: the field lives in
+        // the dialog's own window, which a request from the screen beneath does not reach.
+        val keyboardNow = LocalSoftwareKeyboardController.current
+        LaunchedEffect(Unit) {
+            withFrameNanos { }
+            runCatching { field.requestFocus() }
+            keyboardNow?.show()
+        }
         TextMMD(
             text = stringResource(R.string.login_title, person.label),
             style = MaterialTheme.typography.bodyLarge,
@@ -304,13 +321,16 @@ private fun LoginDialog(person: Person, onDismiss: () -> Unit, onLogIn: (String)
             TextFieldMMD(
                 value = password,
                 onValueChange = { password = it },
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).focusRequester(field),
                 singleLine = true,
                 visualTransformation = if (shown) VisualTransformation.None else PasswordVisualTransformation(),
+                // Done on the keyboard is Log in.
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Password,
                     autoCorrectEnabled = false,
+                    imeAction = ImeAction.Done,
                 ),
+                keyboardActions = KeyboardActions(onDone = { if (password.isNotBlank()) onLogIn(password) }),
             )
             Spacer(Modifier.width(8.dp))
             OutlinedButtonMMD(
