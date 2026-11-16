@@ -44,6 +44,7 @@ import com.wanderwildwood.amime.ui.ArmedScope
 import com.wanderwildwood.amime.ui.Notice
 import com.wanderwildwood.amime.ui.NoticeStrip
 import com.wanderwildwood.amime.ui.onEachPress
+import com.wanderwildwood.amime.ui.DarkSelection
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,7 +54,7 @@ class MainActivity : ComponentActivity() {
             androidx.compose.runtime.CompositionLocalProvider(
                 androidx.compose.ui.platform.LocalCursorBlinkEnabled provides false,
             ) {
-                ThemeMMD(colorScheme = monochrome, typography = houseTypography) {
+                ThemeMMD(colorScheme = monochrome, typography = houseTypography) { DarkSelection {
                     ArmedScope {
                         // A notice along the foot stays until the next press (see Notice).
                         androidx.compose.foundation.layout.Box(
@@ -65,7 +66,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                     }
-                }
+                } }
             }
         }
     }
