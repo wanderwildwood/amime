@@ -46,10 +46,13 @@ class OperationQueue(
      */
     private var attempt = 0L
 
-    val isBusy: Boolean get() = running != null
-    val depth: Int get() = pending.size + if (running == null) 0 else 1
+    // Every entry point holds the queue's lock: GATT callbacks arrive on a binder thread while
+    // writes are queued from the main thread, and the two must not start operations at once.
+    val isBusy: Boolean @Synchronized get() = running != null
+    val depth: Int @Synchronized get() = pending.size + if (running == null) 0 else 1
 
     /** Add an operation, starting it if nothing else is in flight. */
+    @Synchronized
     fun enqueue(operation: Operation) {
         pending.addLast(operation)
         if (running == null) startNext()
@@ -60,6 +63,7 @@ class OperationQueue(
      * finished. A failure still completes: the alternative is a queue that never moves again
      * because one write was rejected by the far end.
      */
+    @Synchronized
     fun completeCurrent() {
         finishRunning()
         startNext()
@@ -76,6 +80,7 @@ class OperationQueue(
      *
      * Returns whether anything was abandoned, so a caller can say so rather than guess.
      */
+    @Synchronized
     fun abandonIfStuck(which: Long): Boolean {
         if (!isInFlight(which)) return false
         finishRunning()
@@ -84,9 +89,11 @@ class OperationQueue(
     }
 
     /** Whether attempt [which] is still the operation in flight: the only time a watchdog has anything to say. */
+    @Synchronized
     fun isInFlight(which: Long): Boolean = running != null && attempt == which
 
     /** Drop everything, on disconnect. Nothing queued survives a connection. */
+    @Synchronized
     fun clear() {
         pending.clear()
         finishRunning()

@@ -111,7 +111,11 @@ class MeshtasticBle(
         } else {
             listener.onPairingRequired()
             awaitBond(device)
-            device.createBond()
+            if (!device.createBond()) {
+                // Refused outright: no bond broadcast is coming to say so.
+                unregisterBondReceiver()
+                fail(R.string.ble_pairing_failed)
+            }
         }
     }
 

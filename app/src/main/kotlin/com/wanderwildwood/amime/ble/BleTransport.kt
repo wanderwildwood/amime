@@ -104,12 +104,18 @@ class BleTransport(
 
     /** Connect, bonding first when the radio is not already paired. */
     fun connect(device: BluetoothDevice) {
+        // A link left from an earlier attempt is closed first, or it keeps its GATT slot.
+        closeGatt()
         if (device.bondState == BluetoothDevice.BOND_BONDED) {
             openGatt(device)
         } else {
             listener.onPairingRequired()
             awaitBond(device)
-            device.createBond()
+            if (!device.createBond()) {
+                // Refused outright: no bond broadcast is coming to say so.
+                unregisterBondReceiver()
+                fail(R.string.ble_pairing_failed)
+            }
         }
     }
 
@@ -118,6 +124,10 @@ class BleTransport(
         watchdog.removeCallbacksAndMessages(null)
         queue.clear()
         rx = null
+        closeGatt()
+    }
+
+    private fun closeGatt() {
         gatt?.let {
             it.disconnect()
             it.close()
@@ -259,13 +269,13 @@ class BleTransport(
             log { "services=${gatt.services.map { it.uuid }} status=$status" }
             val service = gatt.getService(NordicUart.SERVICE)
             if (service == null) {
-                fail(R.string.ble_no_service)
+                failSetup(R.string.ble_no_service)
                 return
             }
             rx = service.getCharacteristic(NordicUart.RX)
             val tx = service.getCharacteristic(NordicUart.TX)
             if (rx == null || tx == null) {
-                fail(R.string.ble_missing_characteristic)
+                failSetup(R.string.ble_missing_characteristic)
                 return
             }
 
@@ -285,7 +295,7 @@ class BleTransport(
                 // setCharacteristicNotification alone only tells the local stack to stop
                 // discarding notifications; without the descriptor write the radio was never
                 // asked to send any, and the connection looks fine and stays silent.
-                fail(R.string.ble_no_cccd)
+                failSetup(R.string.ble_no_cccd)
                 return
             }
             queue.enqueue {
@@ -317,7 +327,7 @@ class BleTransport(
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 listener.onReady()
             } else {
-                fail(R.string.ble_notifications_refused, status)
+                failSetup(R.string.ble_notifications_refused, status)
             }
         }
 
@@ -353,6 +363,12 @@ class BleTransport(
 
     private fun fail(@StringRes reason: Int, vararg values: Any) {
         listener.onError(context.getString(reason, *values))
+    }
+
+    /** A link that cannot be set up is closed before saying why, or it stays open, silent. */
+    private fun failSetup(@StringRes reason: Int, vararg values: Any) {
+        disconnect()
+        fail(reason, *values)
     }
 
     /** The same, where the sentence turns on how many of something there are. */
