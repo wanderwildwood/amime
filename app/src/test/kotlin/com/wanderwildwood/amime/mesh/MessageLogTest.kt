@@ -203,4 +203,17 @@ class MessageLogTest {
         // The temporary file the write goes through is not left lying beside the real one.
         assertEquals(listOf("conversations"), folder.root.list()?.sorted())
     }
+
+    @Test
+    fun `a log this version cannot read is kept aside, not written over`() {
+        val file = File(folder.root, "conversations")
+        file.writeText("amime-messages 2\nsomething newer\n")
+        val log = MessageLog(file)
+
+        assertEquals(emptyMap<List<Byte>, List<Message>>(), log.read().conversations)
+        log.write(mapOf(ridge to listOf(message(1, "first"))))
+
+        assertEquals("amime-messages 2\nsomething newer\n", log.unreadable.readText())
+        assertEquals(1, log.read().conversations.getValue(ridge).size)
+    }
 }

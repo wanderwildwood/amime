@@ -25,9 +25,25 @@ class MessageLog(private val file: File) {
         val readUpTo: Map<List<Byte>, Long> = emptyMap(),
     )
 
-    /** Read the log, treating anything unreadable as absent rather than as a reason to fail. */
-    fun read(): Restored =
-        runCatching { decode(file.readText()) }.getOrDefault(Restored())
+    /**
+     * Read the log, treating anything unreadable as absent rather than as a reason to fail.
+     *
+     * A file that is there but cannot be read (another format, a later version's) is moved
+     * aside to [unreadable] first, so the next write does not put an empty log over it.
+     */
+    @Synchronized
+    fun read(): Restored {
+        if (!file.exists()) return Restored()
+        val text = runCatching { file.readText() }.getOrNull()
+        if (text != null && (text.isBlank() || text.lineSequence().first() == HEADER)) {
+            runCatching { decode(text) }.getOrNull()?.let { return it }
+        }
+        if (!unreadable.exists()) file.renameTo(unreadable)
+        return Restored()
+    }
+
+    /** Where a log this version cannot read is kept, untouched. */
+    val unreadable: File get() = File(file.parentFile, file.name + ".unreadable")
 
     /**
      * Write the whole log.
@@ -36,12 +52,18 @@ class MessageLog(private val file: File) {
      * otherwise leaves a file that is half of two versions, and the half it keeps is the one
      * that fails to parse.
      */
+    @Synchronized
     fun write(
         conversations: Map<List<Byte>, List<Message>>,
         readUpTo: Map<List<Byte>, Long> = emptyMap(),
     ) {
+        // Synced before the rename, so a power cut never leaves the new name on an empty file.
         val temporary = File(file.parentFile, file.name + ".writing")
-        temporary.writeText(encode(conversations, readUpTo))
+        java.io.FileOutputStream(temporary).use { out ->
+            out.write(encode(conversations, readUpTo).toByteArray(Charsets.UTF_8))
+            out.flush()
+            out.fd.sync()
+        }
         if (!temporary.renameTo(file)) {
             temporary.delete()
             throw java.io.IOException("could not replace ${file.name}")
