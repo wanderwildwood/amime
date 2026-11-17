@@ -15,6 +15,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import androidx.annotation.StringRes
+import com.wanderwildwood.amime.BuildConfig
 import com.wanderwildwood.amime.R
 import com.wanderwildwood.amime.meshtastic.MtTransport
 import com.wanderwildwood.amime.meshtastic.MtUuids
@@ -70,8 +71,9 @@ class MeshtasticBle(
     private fun hex4(b: ByteArray?): String =
         if (b == null) "null" else b.take(4).joinToString("") { "%02x".format(it) }
 
+    /** Debug builds only, as on the MeshCore path (BleTransport): a release build logs nothing. */
     private fun log(text: String) {
-        Log.i(LOG, text)
+        if (BuildConfig.DEBUG) Log.i(LOG, text)
     }
 
     private val queue: OperationQueue = OperationQueue(
@@ -331,9 +333,9 @@ class MeshtasticBle(
     private fun refreshCache(gatt: BluetoothGatt) {
         try {
             val ok = gatt.javaClass.getMethod("refresh").invoke(gatt)
-            Log.i(TAG, "GATT cache refresh: $ok")
+            if (BuildConfig.DEBUG) Log.i(TAG, "GATT cache refresh: $ok")
         } catch (e: Exception) {
-            Log.w(TAG, "GATT cache refresh unavailable", e)
+            if (BuildConfig.DEBUG) Log.w(TAG, "GATT cache refresh unavailable", e)
         }
     }
 

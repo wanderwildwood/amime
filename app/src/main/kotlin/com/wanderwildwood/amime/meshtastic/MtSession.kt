@@ -1,6 +1,7 @@
 package com.wanderwildwood.amime.meshtastic
 
 import android.util.Log
+import com.wanderwildwood.amime.BuildConfig
 import com.wanderwildwood.amime.link.RadioBackend
 import com.wanderwildwood.amime.link.RadioKind
 import okio.ByteString.Companion.encodeUtf8
@@ -237,7 +238,8 @@ class MtSession(
     }
 
     private fun note(text: String) {
-        try { Log.i("MtBle", "session: $text") } catch (_: Throwable) { }
+        // Debug builds only: a release build logs nothing (PRIVACY.md).
+        if (BuildConfig.DEBUG) try { Log.i("MtBle", "session: $text") } catch (_: Throwable) { }
     }
 
     private fun drain() {
