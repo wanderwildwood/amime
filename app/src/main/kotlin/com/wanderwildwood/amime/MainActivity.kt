@@ -379,7 +379,8 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
             messages = state.conversations[person.prefix].orEmpty(),
             canSend = state.ready,
             radio = state.radio,
-            sendAgain = if (current.pathKnown) {
+            // A Meshtastic radio keeps no route of its own to forget, so it only sends again.
+            sendAgain = if (current.pathKnown && !meshtastic) {
                 R.string.message_send_again_new_route
             } else {
                 R.string.message_send_again

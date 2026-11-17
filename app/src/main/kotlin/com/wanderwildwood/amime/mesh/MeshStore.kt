@@ -313,6 +313,38 @@ class MeshStore(
         return id
     }
 
+    /**
+     * A Meshtastic message handed to the radio again: the same row, waiting on an answer
+     * until [until]. Returns the attempt number, or null where there is nothing to resend.
+     *
+     * Unlike [recordResend] it is not queued for the MeshCore radio's next reply: a
+     * Meshtastic send is settled by its own packet id, never by whichever answer comes next.
+     */
+    fun mtResend(key: List<Byte>, id: Long, until: Long): Int? {
+        val thread = state.conversations[key] ?: return null
+        val message = thread.firstOrNull { it.id == id } ?: return null
+        val attempt = (message.attempt + 1).coerceAtMost(MAX_ATTEMPT)
+        update {
+            copy(
+                conversations = conversations + (
+                    key to thread.map {
+                        if (it.id == id) {
+                            it.copy(
+                                delivery = Delivery.AWAITING_ACK,
+                                awaitingUntil = until,
+                                attempt = attempt,
+                                failure = null,
+                            )
+                        } else {
+                            it
+                        }
+                    }
+                    ),
+            )
+        }
+        return attempt
+    }
+
     /** Move a sent message to a new state, if it is still there. */
     fun mtSettle(key: List<Byte>, id: Long, delivery: Delivery, failure: Int? = null) {
         setDelivery(key to id, delivery)

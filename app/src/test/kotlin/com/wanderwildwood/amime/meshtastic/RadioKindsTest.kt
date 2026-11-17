@@ -65,4 +65,30 @@ class RadioKindsTest {
         assertEquals(Delivery.REFUSED, m.delivery)
         assertEquals(39, m.failure)
     }
+
+    @Test
+    fun a_meshtastic_message_sent_again_waits_on_the_same_row() {
+        var clock = 1_000L
+        val store = MeshStore(now = { clock })
+        val key = MtSession.keyOf(0x22)
+        store.mtNode(Person(key, name = "Ann", type = AdvType.CHAT, pathKnown = true, lastHeard = 1))
+        val id = store.mtSent(key, "hi", 1, Delivery.AWAITING_ACK, until = 2_000)
+        clock = 2_000
+        store.expireAwaitingAcks()
+        assertEquals(Delivery.UNANSWERED, store.state.conversations[key]!!.single().delivery)
+
+        assertEquals(1, store.mtResend(key, id, until = 5_000))
+        val again = store.state.conversations[key]!!.single()
+        assertEquals(Delivery.AWAITING_ACK, again.delivery)
+        assertEquals(5_000L, again.awaitingUntil)
+        assertEquals(1, again.attempt)
+
+        // Not queued for a MeshCore reply: a stray refusal leaves it waiting.
+        store.onFailed(1)
+        assertEquals(Delivery.AWAITING_ACK, store.state.conversations[key]!!.single().delivery)
+
+        store.mtSettle(key, id, Delivery.ACKNOWLEDGED)
+        assertEquals(Delivery.ACKNOWLEDGED, store.state.conversations[key]!!.single().delivery)
+        assertNull(store.mtResend(MtSession.keyOf(0x33), id, until = 5_000))
+    }
 }

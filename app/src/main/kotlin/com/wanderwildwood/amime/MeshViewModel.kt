@@ -527,6 +527,15 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
         message: Message,
         now: Long = System.currentTimeMillis() / 1000,
     ) {
+        if (kind == RadioKind.MESHTASTIC) {
+            // Its own packet id settles it, as the first send's did. The earlier id stays in
+            // the outbox: a late answer to the first try settles this message just as well.
+            val until = System.currentTimeMillis() + MT_ACK_WAIT_MS
+            val packet = mtSession.sendText(MtSession.numOf(person.prefix), 0, message.text)
+            store.mtResend(person.prefix, message.id, until) ?: return
+            outbox[packet] = person.prefix to message.id
+            return
+        }
         if (person.pathKnown && person.publicKey.size == Sizes.PUB_KEY) {
             session.resetPath(person.publicKey.toByteArray())
             store.forgetRoute(person.prefix)
