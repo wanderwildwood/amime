@@ -123,7 +123,7 @@ enum class Part(val title: String, val module: Boolean) {
     EXT_NOTIFICATION("Alerts (LED, buzzer, vibration)", true),
     RANGE_TEST("Range test", true),
     CANNED_MESSAGE("Canned messages", true),
-    NEIGHBOR_INFO("Neighbour info", true),
+    NEIGHBOR_INFO("Neighbor info", true),
     DETECTION_SENSOR("Detection sensor", true),
     PAXCOUNTER("People counter", true),
     MQTT("MQTT", true),
@@ -352,7 +352,7 @@ object MtFields {
     )
 
     private val units = opts(0 to "Metric", 1 to "Imperial")
-    private val displayModes = opts(0 to "Default", 1 to "Two colour", 2 to "Inverted", 3 to "Colour")
+    private val displayModes = opts(0 to "Default", 1 to "Two color", 2 to "Inverted", 3 to "Color")
     private val oleds = opts(0 to "Automatic", 1 to "SSD1306", 2 to "SH1106", 3 to "SH1107", 4 to "SH1107 128x128", 5 to "SH1107 rotated")
     private val orientations = opts(
         0 to "0 degrees", 1 to "90 degrees", 2 to "180 degrees", 3 to "270 degrees",
@@ -765,9 +765,9 @@ object MtFields {
             rd = { it.send_bell }, wr = { s, v -> s.copy(send_bell = v) },
         ),
 
-        // ---- Neighbour info ----
+        // ---- Neighbor info ----
         neighbor.flag(
-            "enabled", "Neighbour info", "Shares which radios this one hears directly.",
+            "enabled", "Neighbor info", "Shares which radios this one hears directly.",
             rd = { it.enabled }, wr = { s, v -> s.copy(enabled = v) },
         ),
         neighbor.num(

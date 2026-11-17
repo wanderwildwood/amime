@@ -48,6 +48,10 @@ with the same key could hold it, which means only this app. It is a lock, not a 
 
 Your conversations, in the app's own private storage, as a file of plain lines. Nowhere else.
 
+Beside them, in the app's private settings: a position you typed in, if you did, whether the
+list of people is sorted nearest first, and whether dark mode is on. When Home is installed,
+the app reads Home's dark mode switch, a yes or no, and sends nothing to it.
+
 They are kept because the radio does not keep them: a message it has handed over is a message
 it no longer holds, so if this app did not write them down they would be gone the next time
 Android reclaimed the process.
@@ -97,11 +101,14 @@ Nothing, in a released build. Frame-level diagnostics exist in the source for wo
 protocol, and they are compiled out of a release, so the text of a message never reaches the
 system log.
 
-## The one address in the app
+## Addresses the app can open
 
-The llama at the foot of the About opens `square.link/u/AGu8oT10` in whatever browser you
-have. That is a hand-off: this app does not fetch the page, and it learns nothing about
-whether you went there.
+The About's links open the source code (`github.com/wanderwildwood/amime`) and
+`wanderthe.dev` in whatever browser you have, its contact line opens your mail app with
+`email@wanderthe.dev` filled in, and the llama at its foot opens `square.link/u/AGu8oT10`.
+A person's position, when you choose to open it, goes to your map app as a `geo:` link. Each
+is a hand-off: this app does not fetch the page, and it learns nothing about whether you went
+there.
 
 <!-- shared-about privacy section -->
 ## Who we are

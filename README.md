@@ -80,7 +80,7 @@ Meshtastic's protocol definitions are carried unchanged in `app/src/main/proto` 
 
 ## Where this is up to
 
-**Version 0.3.2.** The commands and frames are written against
+The commands and frames are written against
 `examples/companion_radio/MyMesh.cpp` in the MeshCore firmware rather than against the protocol
 documentation, for a reason given below. The session — handshake order, draining the message
 queue, matching an acknowledgment to the send that expected it — has no Android in it at all,
@@ -198,8 +198,10 @@ reclaimed the process. A message that was still in flight when that happened com
 state of its own rather than as one still waiting — the acknowledgment it wanted went past
 while nothing was listening, and saying it is still pending would be a claim nobody can make.
 
-Nothing else is stored. Contacts come off the radio at every connection, which is where they
-live; what the antenna heard is about this session and does not outlast it.
+Beside them the app keeps three small settings: a position you typed in, if you did, whether
+the list of people is sorted nearest first, and whether dark mode is on. Contacts come off the
+radio at every connection, which is where they live; what the antenna heard is about this
+session and does not outlast it.
 
 `PRIVACY.md` sets that out at length, along with the part that is not this app's doing: a
 message's body is encrypted to the contact it is for, who it is between is not, and an advert
@@ -218,10 +220,9 @@ Two things about that wait are the firmware's, and worth knowing before you rely
   `ThinkNode_M5_companion_radio_ble` environment. ⚠ The default in `MyMesh.h` is **16**, so a
   board whose variant does not raise it holds far less than this one does. Check the variant
   rather than the header.
-- **When it does fill, the newest message is the one that goes.** `addToOfflineQueue` looks for
-  the oldest *channel* message to evict, and this app never creates one, so there is never
-  anything to evict and the arriving message is dropped where it stands. Nothing is logged to
-  the app and nothing can detect it from this end.
+- **When it does fill, a channel message makes room first.** `addToOfflineQueue` evicts the
+  oldest *channel* message waiting; only when none is waiting is the arriving message dropped
+  where it stands. Nothing is logged to the app and nothing can detect it from this end.
 
 And the queue is in RAM: `Frame offline_queue[OFFLINE_QUEUE_SIZE]` is a member array with no
 save or load anywhere near it, so **anything waiting is gone if the radio restarts**. Power the
