@@ -409,6 +409,7 @@ class MtSession(
                 admin.get_channel_response?.let { got ->
                     // The slot asked for is the slot filled, whatever index the answer carries.
                     val c = if (asked != null && got.index != asked) got.copy(index = asked) else got
+                    if (c.index !in 0 until MAX_CHANNELS) return@let
                     channels[c.index] = c
                     emitChannel(c)
                     listener.onChannelInfos(channelInfos())

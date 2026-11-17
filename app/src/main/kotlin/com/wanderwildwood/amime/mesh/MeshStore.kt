@@ -189,8 +189,11 @@ class MeshStore(
     fun onDisconnected() {
         // Nothing will answer a channel message the radio had not yet taken. Left as it was,
         // it would say "Sending" until the app was closed.
-        val stranded = unansweredOnChannels.toList()
+        // The same for a direct message the radio never answered: and left in the queue, the
+        // next connection's first answer would be matched to it instead of to its own send.
+        val stranded = unansweredOnChannels.toList() + unanswered.toList()
         unansweredOnChannels.clear()
+        unanswered.clear()
         beforeTheirChannel.clear()
         stranded.forEach { setDelivery(it, Delivery.UNRESOLVED) }
         update {
@@ -361,7 +364,15 @@ class MeshStore(
     // ---- what the radio says ----
 
     override fun onReady(self: Frame.SelfInfo) = update {
-        copy(nodeName = self.name, ready = true)
+        // A MeshCore radio after a Meshtastic one: its people were the other radio's nodes,
+        // and its own contacts come right after this.
+        val wasMeshtastic = radio == RadioKind.MESHTASTIC
+        copy(
+            nodeName = self.name,
+            ready = true,
+            radio = RadioKind.MESHCORE,
+            people = if (wasMeshtastic) emptyList() else people,
+        )
     }
 
     override fun onContact(contact: Frame.Contact) {

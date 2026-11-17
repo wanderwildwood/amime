@@ -1,5 +1,6 @@
 package com.wanderwildwood.amime.mesh
 
+import com.wanderwildwood.amime.link.RadioKind
 import com.wanderwildwood.amime.protocol.AdvType
 import com.wanderwildwood.amime.protocol.Frame
 import com.wanderwildwood.amime.protocol.OUT_PATH_UNKNOWN
@@ -613,6 +614,31 @@ class MeshStoreTest {
 
         store.onDisconnected()
         assertFalse(store.state.ready)
+    }
+
+    @Test
+    fun `a direct message the radio never answered is not settled by the next connection`() {
+        store.onContact(contact("ridge", key = 0x11))
+        store.onContact(contact("hollow", key = 0x22))
+        store.recordSent(ridge, "are you there", 1)
+        store.onDisconnected()
+        assertEquals(Delivery.UNRESOLVED, only(ridge).delivery)
+
+        store.recordSent(hollow, "and you", 2)
+        store.onSent(sentAwaiting(ack = 0x99, estimatedTimeoutMs = 30_000), awaitingAck = true)
+        assertEquals(Delivery.UNRESOLVED, only(ridge).delivery)
+        assertEquals(Delivery.AWAITING_ACK, only(hollow).delivery)
+    }
+
+    @Test
+    fun `a MeshCore radio after a Meshtastic one is MeshCore again, without the other's nodes`() {
+        store.onContact(contact("ridge", key = 0x11))
+        store.mtReady("first")
+        assertEquals(RadioKind.MESHTASTIC, store.state.radio)
+        store.onDisconnected()
+        store.onReady(selfInfo("wndr-node"))
+        assertEquals(RadioKind.MESHCORE, store.state.radio)
+        assertTrue(store.state.people.isEmpty())
     }
 
     @Test
