@@ -176,4 +176,24 @@ class OperationQueueTest {
         assertEquals(listOf(1L, 2L), finished)
         assertFalse(queue.isInFlight(2))
     }
+
+    @Test
+    fun `a late callback of another kind does not finish the operation in flight`() {
+        val started = mutableListOf<String>()
+        val queue = OperationQueue()
+        queue.enqueue("write") { started += "w1"; true }
+        queue.enqueue("read") { started += "r"; true }
+        queue.enqueue("write") { started += "w2"; true }
+
+        // The write is given up on; the read starts.
+        assertTrue(queue.abandonIfStuck(1))
+        assertEquals(listOf("w1", "r"), started)
+
+        // The abandoned write answers late: it must not finish the read and start w2.
+        assertFalse(queue.completeCurrent("write"))
+        assertEquals(listOf("w1", "r"), started)
+
+        assertTrue(queue.completeCurrent("read"))
+        assertEquals(listOf("w1", "r", "w2"), started)
+    }
 }

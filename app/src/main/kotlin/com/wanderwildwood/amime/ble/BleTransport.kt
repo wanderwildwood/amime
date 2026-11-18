@@ -95,7 +95,7 @@ class BleTransport(
     /** Come back in a while and see whether this same operation is still in flight. */
     private fun watchOperation(attempt: Long) {
         watchdog.postDelayed(
-            { if (queue.abandonIfStuck(attempt)) fail(R.string.ble_no_answer) },
+            { if (queue.abandonIfStuck(attempt)) dropLink(R.string.ble_no_answer) },
             OPERATION_PATIENCE_MS,
         )
     }
@@ -162,7 +162,7 @@ class BleTransport(
             return
         }
         log { "send ${frame.size} bytes: ${frame.joinToString(" ") { "%02x".format(it) }}" }
-        queue.enqueue {
+        queue.enqueue(OP_WRITE) {
             @Suppress("DEPRECATION") // The Android 13 overload does not exist on the Kompakt's API 31.
             run {
                 characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
@@ -228,7 +228,7 @@ class BleTransport(
                     // services, and asking afterwards means the first frames go out at 20
                     // bytes and come back cut off.
                     queue.clear()
-                    queue.enqueue { gatt.requestMtu(NordicUart.DESIRED_MTU) }
+                    queue.enqueue(OP_MTU) { gatt.requestMtu(NordicUart.DESIRED_MTU) }
                 }
 
                 BluetoothProfile.STATE_DISCONNECTED -> {
@@ -261,7 +261,7 @@ class BleTransport(
             // something plausible and wrong.
             if (mtu < MIN_USABLE_MTU) failCount(R.plurals.ble_small_mtu, mtu, mtu)
             negotiatedMtu = mtu
-            queue.completeCurrent()
+            if (!queue.completeCurrent(OP_MTU)) return
             gatt.discoverServices()
         }
 
@@ -287,7 +287,7 @@ class BleTransport(
             // app gets a connection that accepts every command, processes it, and drops every
             // reply without a word. Touching a characteristic marked ENC_MITM is what makes
             // Android elevate the link, so this read is the thing that makes the radio talk.
-            queue.enqueue { gatt.readCharacteristic(tx) }
+            queue.enqueue(OP_READ) { gatt.readCharacteristic(tx) }
 
             gatt.setCharacteristicNotification(tx, true)
             val cccd = tx.getDescriptor(NordicUart.CCCD)
@@ -298,7 +298,7 @@ class BleTransport(
                 failSetup(R.string.ble_no_cccd)
                 return
             }
-            queue.enqueue {
+            queue.enqueue(OP_DESCRIPTOR) {
                 @Suppress("DEPRECATION")
                 run {
                     cccd.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
@@ -313,7 +313,7 @@ class BleTransport(
             status: Int,
         ) {
             log { "read ${characteristic.uuid} status=$status bond=${gatt.device.bondState}" }
-            queue.completeCurrent()
+            queue.completeCurrent(OP_READ)
         }
 
         override fun onDescriptorWrite(
@@ -322,7 +322,7 @@ class BleTransport(
             status: Int,
         ) {
             log { "descriptorWrite ${descriptor.uuid} status=$status" }
-            queue.completeCurrent()
+            if (!queue.completeCurrent(OP_DESCRIPTOR)) return
             if (descriptor.uuid != NordicUart.CCCD) return
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 listener.onReady()
@@ -337,7 +337,7 @@ class BleTransport(
             status: Int,
         ) {
             log { "wrote status=$status" }
-            queue.completeCurrent()
+            if (!queue.completeCurrent(OP_WRITE)) return
             if (status != BluetoothGatt.GATT_SUCCESS) {
                 fail(R.string.ble_write_failed, status)
             }
@@ -363,6 +363,21 @@ class BleTransport(
 
     private fun fail(@StringRes reason: Int, vararg values: Any) {
         listener.onError(context.getString(reason, *values))
+    }
+
+    /**
+     * An operation that never called back: the link is closed and said to be gone.
+     *
+     * Kept open, a callback arriving late for the operation given up on could finish a later
+     * one early, and the one after that would be started while the stack was still busy and
+     * be dropped without a word. Closed, nothing late arrives; the person connects again.
+     */
+    private fun dropLink(@StringRes reason: Int) {
+        val wasLinked = gatt != null
+        disconnect()
+        linked = false
+        fail(reason)
+        if (wasLinked) listener.onDisconnected()
     }
 
     /** A link that cannot be set up is closed before saying why, or it stays open, silent. */
@@ -401,6 +416,12 @@ class BleTransport(
          * other it is a link that never sends anything again and says nothing about it.
          */
         const val OPERATION_PATIENCE_MS = 10_000L
+
+        /** The kinds of GATT operation, so a callback completes only its own kind. */
+        const val OP_MTU = "mtu"
+        const val OP_READ = "read"
+        const val OP_DESCRIPTOR = "descriptor"
+        const val OP_WRITE = "write"
     }
 }
 

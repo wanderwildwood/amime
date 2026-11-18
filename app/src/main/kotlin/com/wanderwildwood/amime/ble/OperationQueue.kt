@@ -34,8 +34,11 @@ class OperationQueue(
         fun start(): Boolean
     }
 
-    private val pending = ArrayDeque<Operation>()
+    private val pending = ArrayDeque<Pair<String, Operation>>()
     private var running: Operation? = null
+
+    /** What kind of operation is in flight ("write", "read" ...), so a callback of another kind can be told apart. */
+    private var runningKind: String = ""
 
     /**
      * Which attempt is in flight, counted from the first.
@@ -53,8 +56,15 @@ class OperationQueue(
 
     /** Add an operation, starting it if nothing else is in flight. */
     @Synchronized
-    fun enqueue(operation: Operation) {
-        pending.addLast(operation)
+    fun enqueue(operation: Operation) = enqueue("", operation)
+
+    /**
+     * Add an operation of a named [kind], starting it if nothing else is in flight. A callback
+     * completes it only when it names the same kind; see [completeCurrent].
+     */
+    @Synchronized
+    fun enqueue(kind: String, operation: Operation) {
+        pending.addLast(kind to operation)
         if (running == null) startNext()
     }
 
@@ -67,6 +77,19 @@ class OperationQueue(
     fun completeCurrent() {
         finishRunning()
         startNext()
+    }
+
+    /**
+     * The same, from a callback of a named [kind]. A callback of another kind than the one in
+     * flight is the late answer to an operation already given up on (see [abandonIfStuck]),
+     * and finishing the one in flight on its word would start the next while the stack is
+     * still busy with this one. It is ignored, and false says so.
+     */
+    @Synchronized
+    fun completeCurrent(kind: String): Boolean {
+        if (running != null && runningKind.isNotEmpty() && runningKind != kind) return false
+        completeCurrent()
+        return true
     }
 
     /**
@@ -102,13 +125,15 @@ class OperationQueue(
     private fun finishRunning() {
         if (running == null) return
         running = null
+        runningKind = ""
         onFinished(attempt)
     }
 
     private fun startNext() {
         while (running == null) {
-            val next = pending.removeFirstOrNull() ?: return
+            val (kind, next) = pending.removeFirstOrNull() ?: return
             running = next
+            runningKind = kind
             attempt++
             onStarted(attempt)
             if (!next.start()) {

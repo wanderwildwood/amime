@@ -86,9 +86,11 @@ class MeshtasticBle(
                 log("timeout: #$attempt still waiting for $what after ${PATIENCE_MS} ms")
                 if (queue.abandonIfStuck(attempt)) {
                     if (what == "read FromRadio" && listener.onReadStalled()) {
+                        // A read's late answer can only finish a read: anything else in flight
+                        // ignores it (OperationQueue.completeCurrent(kind)).
                         log("timeout: read abandoned, session asked to read again")
                     } else {
-                        fail(R.string.ble_no_answer)
+                        dropLink(R.string.ble_no_answer)
                     }
                 }
             }
@@ -136,7 +138,7 @@ class MeshtasticBle(
     override fun write(toRadio: ByteArray) {
         val characteristic = this.toRadio ?: return fail(R.string.ble_not_connected)
         val connection = gatt ?: return
-        queue.enqueue {
+        queue.enqueue(OP_WRITE) {
             inFlight = "write ToRadio"
             log("issue: write ToRadio ${toRadio.size} bytes")
             @Suppress("DEPRECATION") // The Android 13 overload does not exist on API 31.
@@ -152,7 +154,7 @@ class MeshtasticBle(
         val action = Runnable {
             val characteristic = fromRadio ?: return@Runnable
             val connection = gatt ?: return@Runnable
-            queue.enqueue {
+            queue.enqueue(OP_READ) {
                 inFlight = "read FromRadio"
                 val started = connection.readCharacteristic(characteristic)
                 log("issue: read FromRadio -> $started")
@@ -203,7 +205,7 @@ class MeshtasticBle(
                 BluetoothProfile.STATE_CONNECTED -> {
                     linked = true
                     queue.clear()
-                    queue.enqueue {
+                    queue.enqueue(OP_MTU) {
                         inFlight = "MTU"
                         val started = gatt.requestMtu(MtUuids.DESIRED_MTU)
                         log("issue: requestMtu ${MtUuids.DESIRED_MTU} -> $started")
@@ -232,7 +234,7 @@ class MeshtasticBle(
 
         override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
             log("onMtuChanged mtu=$mtu status=$status")
-            queue.completeCurrent()
+            if (!queue.completeCurrent(OP_MTU)) return
             discoverFresh(gatt)
         }
 
@@ -261,7 +263,7 @@ class MeshtasticBle(
                 fail(R.string.ble_no_cccd)
                 return
             }
-            queue.enqueue {
+            queue.enqueue(OP_DESCRIPTOR) {
                 inFlight = "CCCD write"
                 log("issue: write CCCD on FromNum")
                 @Suppress("DEPRECATION")
@@ -274,7 +276,7 @@ class MeshtasticBle(
 
         override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
             log("onDescriptorWrite ${descriptor.uuid} status=$status")
-            queue.completeCurrent()
+            if (!queue.completeCurrent(OP_DESCRIPTOR)) return
             if (descriptor.uuid != NordicUart.CCCD) return
             if (status == BluetoothGatt.GATT_SUCCESS) listener.onReady()
             else if (!retryStale(gatt, status)) {
@@ -289,7 +291,9 @@ class MeshtasticBle(
         @Suppress("DEPRECATION") // The API 33 overload that passes the value does not exist here.
         override fun onCharacteristicRead(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
             log("onCharacteristicRead ${characteristic.uuid} status=$status len=${characteristic.value?.size} first4=${hex4(characteristic.value)}")
-            queue.completeCurrent()
+            // A late read finishes nothing else, but what it read is still the radio's next
+            // packet and is passed on.
+            queue.completeCurrent(OP_READ)
             if (characteristic.uuid != MtUuids.FROM_RADIO) return
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 listener.onRead(characteristic.value?.copyOf() ?: ByteArray(0))
@@ -300,7 +304,7 @@ class MeshtasticBle(
 
         override fun onCharacteristicWrite(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
             log("onCharacteristicWrite ${characteristic.uuid} status=$status")
-            queue.completeCurrent()
+            if (!queue.completeCurrent(OP_WRITE)) return
             if (status != BluetoothGatt.GATT_SUCCESS) fail(R.string.ble_write_failed, status)
         }
 
@@ -343,6 +347,15 @@ class MeshtasticBle(
         }
     }
 
+    /** An operation that never called back: closed and said to be gone, as in BleTransport. */
+    private fun dropLink(@StringRes reason: Int) {
+        val wasLinked = gatt != null
+        disconnect()
+        linked = false
+        fail(reason)
+        if (wasLinked) listener.onDisconnected()
+    }
+
     private fun failStale(@StringRes reason: Int, vararg values: Any) {
         listener.onError(context.getString(reason, *values) + "\n" + context.getString(R.string.ble_forget_radio))
     }
@@ -356,5 +369,9 @@ class MeshtasticBle(
         const val REFRESH_WAIT_MS = 600L
         const val TAG = "MeshtasticBle"
         const val LOG = "MtBle"
+        const val OP_MTU = "mtu"
+        const val OP_READ = "read"
+        const val OP_DESCRIPTOR = "descriptor"
+        const val OP_WRITE = "write"
     }
 }
