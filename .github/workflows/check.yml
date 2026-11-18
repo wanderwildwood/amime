@@ -1,8 +1,8 @@
 # Tests and lint on the way in, rather than only on the way out.
 #
-# The release workflow runs both, but only on a tag — so until a release was cut nothing
-# checked a push at all, and a regression could sit on main until somebody happened to build
-# it locally. This is the same two commands, on every push and every pull request.
+# Releases are built locally, so without this nothing would check a push at all, and a
+# regression could sit on main until somebody happened to build it. This runs the unit tests
+# and lint on every push and every pull request.
 #
 # It deliberately does not build a release APK: that needs the signing key, and a check that
 # needs a secret is a check that cannot run on a fork or a pull request from one.
