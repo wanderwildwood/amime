@@ -248,7 +248,9 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
         store.restore(restored.conversations, restored.nextId, restored.readUpTo)
 
         viewModelScope.launch(Dispatchers.IO) {
-            var written = restored.conversations to restored.readUpTo
+            // A log in the earlier format is written again at once, so no channel's own key is
+            // left in the file waiting for the next message.
+            var written = (restored.conversations to restored.readUpTo).takeUnless { restored.former }
             toSave.filterNotNull().collect { saving ->
                 val next = saving.conversations to saving.readUpTo
                 if (next == written) return@collect

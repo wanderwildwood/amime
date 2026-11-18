@@ -171,6 +171,85 @@ class MessageLogTest {
         assertNull(restored.conversations.getValue(ridge).single().snr)
     }
 
+    // ---- the earlier format ----
+
+    /** How a Meshtastic channel's thread key was made before it went through Channel.threadKey. */
+    private fun formerMeshtasticKey(name: String, psk: okio.ByteString): List<Byte> {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        digest.update("meshtastic-channel\u0000".encodeToByteArray())
+        digest.update(name.encodeToByteArray())
+        digest.update(0)
+        digest.update(psk.toByteArray())
+        return digest.digest().take(16)
+    }
+
+    private fun hex(key: List<Byte>) = key.joinToString("") { "%02x".format(it) }
+
+    private fun line(key: List<Byte>, id: Long, text: String) =
+        "${hex(key)}\t$id\t0\t${1_700_000_000L + id}\tACKNOWLEDGED\t-\t-\t$text\n"
+
+    @Test
+    fun `an earlier log finds every thread under its new key and keeps no channel's secret`() {
+        val secret = List<Byte>(16) { (0x40 + it).toByte() }
+        val psk = okio.ByteString.of(1, 2, 3)
+        val formerHikers = formerMeshtasticKey("Hikers", psk)
+        val formerSlot = "meshtastic-ch".encodeToByteArray().toList() + listOf<Byte>(0, 0, 2)
+        val old = "amime-messages 1\n" +
+            "read\t${hex(secret)}\t1\n" +
+            "read\t${hex(ridge)}\t4\n" +
+            line(secret, 1, "Ada Whitlock: on the ridge") +
+            line(formerHikers, 2, "Tomas Reyes: at the hut") +
+            line(formerSlot, 3, "early") +
+            line(ridge, 4, "direct")
+
+        val restored = MessageLog.decode(old)
+
+        val core = Channel(0, "Private", secret)
+        assertTrue(restored.former)
+        assertEquals("Ada Whitlock: on the ridge", restored.conversations.getValue(core.key).single().text)
+        assertEquals(
+            "Tomas Reyes: at the hut",
+            restored.conversations.getValue(
+                com.wanderwildwood.amime.meshtastic.MtSession.channelKey("Hikers", psk),
+            ).single().text,
+        )
+        assertEquals(
+            "early",
+            restored.conversations.getValue(com.wanderwildwood.amime.meshtastic.MtSession.channelKey(2)).single().text,
+        )
+        assertEquals("direct", restored.conversations.getValue(ridge).single().text)
+        assertEquals(mapOf(core.key to 1L, ridge to 4L), restored.readUpTo)
+        assertEquals(4, restored.conversations.size)
+
+        val rewritten = MessageLog.encode(restored.conversations, restored.readUpTo)
+        assertTrue(!rewritten.contains(hex(secret)))
+        assertTrue(rewritten.startsWith("amime-messages 2\n"))
+        assertEquals(restored.conversations, MessageLog.decode(rewritten).conversations)
+        assertTrue(!MessageLog.decode(rewritten).former)
+    }
+
+    @Test
+    fun `an earlier log on disk is read, not set aside`() {
+        val file = File(folder.root, "conversations")
+        file.writeText("amime-messages 1\n" + line(ridge, 1, "kept"))
+        val log = MessageLog(file)
+
+        val restored = log.read()
+
+        assertEquals("kept", restored.conversations.getValue(ridge).single().text)
+        assertTrue(restored.former)
+        assertTrue(!log.unreadable.exists())
+    }
+
+    @Test
+    fun `a channel thread key is not the channel's secret`() {
+        val secret = List<Byte>(16) { 0x33 }
+        val channel = Channel(1, "#test", secret)
+        assertEquals(16, channel.key.size)
+        assertTrue(channel.key != secret)
+        assertEquals(channel.key, Channel(4, "#test", secret).key)
+    }
+
     // ---- the file itself ----
 
     @Test
@@ -207,13 +286,13 @@ class MessageLogTest {
     @Test
     fun `a log this version cannot read is kept aside, not written over`() {
         val file = File(folder.root, "conversations")
-        file.writeText("amime-messages 2\nsomething newer\n")
+        file.writeText("amime-messages 3\nsomething newer\n")
         val log = MessageLog(file)
 
         assertEquals(emptyMap<List<Byte>, List<Message>>(), log.read().conversations)
         log.write(mapOf(ridge to listOf(message(1, "first"))))
 
-        assertEquals("amime-messages 2\nsomething newer\n", log.unreadable.readText())
+        assertEquals("amime-messages 3\nsomething newer\n", log.unreadable.readText())
         assertEquals(1, log.read().conversations.getValue(ridge).size)
     }
 
@@ -221,14 +300,14 @@ class MessageLogTest {
     fun `a second log this version cannot read is kept aside beside the first`() {
         val file = File(folder.root, "conversations")
         val log = MessageLog(file)
-        log.unreadable.writeText("amime-messages 2\nolder\n")
-        file.writeText("amime-messages 3\nnewer\n")
+        log.unreadable.writeText("amime-messages 3\nolder\n")
+        file.writeText("amime-messages 4\nnewer\n")
 
         log.read()
         log.write(mapOf(ridge to listOf(message(1, "first"))))
 
-        assertEquals("amime-messages 2\nolder\n", log.unreadable.readText())
-        assertEquals("amime-messages 3\nnewer\n", File(folder.root, "conversations.unreadable-2").readText())
+        assertEquals("amime-messages 3\nolder\n", log.unreadable.readText())
+        assertEquals("amime-messages 4\nnewer\n", File(folder.root, "conversations.unreadable-2").readText())
     }
 
     @Test

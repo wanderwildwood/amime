@@ -71,11 +71,31 @@ data class Person(
  * radio happens to keep it — leave a channel and join another, and the slot means something
  * else — while the key is what the channel is. Sixteen bytes, so it cannot be mistaken for a
  * person's six-byte prefix in the same map.
+ *
+ * The [key] is a digest of the [secret], never the secret itself: the thread key is written on
+ * every line of the conversations file, and a private channel's secret is its password. A
+ * Meshtastic channel passes its thread key, already a digest, as both.
  */
-data class Channel(val index: Int, val name: String, val secret: List<Byte>) {
-    val key: List<Byte> get() = secret
-
+data class Channel(
+    val index: Int,
+    val name: String,
+    val secret: List<Byte>,
+    val key: List<Byte> = threadKey(secret),
+) {
     val isPublic: Boolean get() = Channels.isPublic(secret.toByteArray())
+
+    companion object {
+        /**
+         * Sixteen bytes of SHA-256 over a tag and [raw]: what a channel's thread is filed under.
+         * The same raw bytes always give the same key, so a channel finds its thread again.
+         */
+        fun threadKey(raw: List<Byte>): List<Byte> {
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            digest.update("amime-channel-thread\u0000".encodeToByteArray())
+            digest.update(raw.toByteArray())
+            return digest.digest().take(16)
+        }
+    }
 }
 
 /** How far a message this app sent has actually got. */

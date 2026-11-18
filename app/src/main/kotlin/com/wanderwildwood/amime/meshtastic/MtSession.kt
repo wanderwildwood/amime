@@ -835,13 +835,18 @@ class MtSession(
          * The key a slot's thread was filed under before threads followed the channel: sixteen
          * bytes, so never a person's. Still where a message lands before its slot is read.
          */
-        fun channelKey(index: Int): List<Byte> =
-            "meshtastic-ch".encodeToByteArray().toList().plus(listOf(0, 0, index.toByte()))
+        fun channelKey(index: Int): List<Byte> = com.wanderwildwood.amime.mesh.Channel.threadKey(
+            "meshtastic-ch".encodeToByteArray().toList().plus(listOf(0, 0, index.toByte())),
+        )
 
         /**
          * The key a channel's thread is filed under: sixteen bytes taken from the channel's
          * name and key, so the same channel finds its thread in any slot, and a different
          * channel in a slot that was used before starts a thread of its own.
+         *
+         * Passed through the same [com.wanderwildwood.amime.mesh.Channel.threadKey] as a
+         * MeshCore channel's secret, so a log from before that can be moved across without
+         * knowing which radio each thread came from.
          */
         fun channelKey(name: String, psk: okio.ByteString): List<Byte> {
             val digest = java.security.MessageDigest.getInstance("SHA-256")
@@ -849,7 +854,7 @@ class MtSession(
             digest.update(name.encodeToByteArray())
             digest.update(0)
             digest.update(psk.toByteArray())
-            return digest.digest().take(16)
+            return com.wanderwildwood.amime.mesh.Channel.threadKey(digest.digest().take(16))
         }
 
         /** Below 2.5 there is no PKI and hop counts cannot be trusted. */

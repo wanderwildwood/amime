@@ -272,7 +272,8 @@ class MeshStore(
         } else {
             val bySlot = com.wanderwildwood.amime.meshtastic.MtSession.channelKey(index)
             val moved = conversations[bySlot]
-            val withChannel = copy(channels = (others + Channel(index, name, key)).sortedBy { it.index })
+            // The thread key is already a digest of name and key: it stands in for the secret too.
+            val withChannel = copy(channels = (others + Channel(index, name, key, key)).sortedBy { it.index })
             if (moved == null || bySlot == key) {
                 withChannel
             } else {

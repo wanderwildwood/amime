@@ -15,6 +15,10 @@ class MeshStoreChannelsTest {
     private val public = Channels.PUBLIC_KEY.toList()
     private val test = Channels.hashtagKey("#test").toList()
 
+    /** What each channel's thread is filed under: a digest of its secret, never the secret. */
+    private val publicThread = Channel.threadKey(public)
+    private val testThread = Channel.threadKey(test)
+
     @Before
     fun setUp() {
         store = MeshStore(now = { 0L })
@@ -51,20 +55,21 @@ class MeshStoreChannelsTest {
         slot(2, "#test", test)
         said(2, "Ada Whitlock: the road is clear")
 
-        val message = store.state.conversations[test]!!.single()
+        val message = store.state.conversations[testThread]!!.single()
+        assertTrue(store.state.conversations[test] == null)
         assertEquals("Ada Whitlock: the road is clear", message.text)
         assertFalse(message.mine)
-        assertEquals(1, store.state.unreadCount(test))
+        assertEquals(1, store.state.unreadCount(testThread))
     }
 
     /** The queue drains while the slots are still being read. */
     @Test
     fun `a message ahead of its slot waits for it`() {
         said(2, "Tomas Reyes: early")
-        assertTrue(store.state.conversations[test].isNullOrEmpty())
+        assertTrue(store.state.conversations[testThread].isNullOrEmpty())
 
         slot(2, "#test", test)
-        assertEquals("Tomas Reyes: early", store.state.conversations[test]!!.single().text)
+        assertEquals("Tomas Reyes: early", store.state.conversations[testThread]!!.single().text)
     }
 
     @Test
@@ -78,26 +83,26 @@ class MeshStoreChannelsTest {
     @Test
     fun `a channel message sent is settled by the radio taking it`() {
         slot(0, "Public", public)
-        store.recordChannelSent(public, "hello", 1)
-        assertEquals(Delivery.SENDING, store.state.conversations[public]!!.single().delivery)
+        store.recordChannelSent(publicThread, "hello", 1)
+        assertEquals(Delivery.SENDING, store.state.conversations[publicThread]!!.single().delivery)
 
         store.onChannelSent()
-        assertEquals(Delivery.SENT, store.state.conversations[public]!!.single().delivery)
+        assertEquals(Delivery.SENT, store.state.conversations[publicThread]!!.single().delivery)
     }
 
     @Test
     fun `a channel message refused says so`() {
-        store.recordChannelSent(public, "hello", 1)
+        store.recordChannelSent(publicThread, "hello", 1)
         store.onChannelSendFailed(2)
-        assertEquals(Delivery.REFUSED, store.state.conversations[public]!!.single().delivery)
+        assertEquals(Delivery.REFUSED, store.state.conversations[publicThread]!!.single().delivery)
     }
 
     /** Otherwise it would say "Sending" until the app was closed. */
     @Test
     fun `a channel message still unanswered at a disconnect is unresolved`() {
-        store.recordChannelSent(public, "hello", 1)
+        store.recordChannelSent(publicThread, "hello", 1)
         store.onDisconnected()
-        assertEquals(Delivery.UNRESOLVED, store.state.conversations[public]!!.single().delivery)
+        assertEquals(Delivery.UNRESOLVED, store.state.conversations[publicThread]!!.single().delivery)
         assertTrue(store.state.channels.isEmpty())
         assertFalse(store.state.channelsLoaded)
     }
@@ -113,18 +118,18 @@ class MeshStoreChannelsTest {
         store.onChannelSet(1, "", ByteArray(16))
         assertTrue(store.state.channels.isEmpty())
         assertEquals(listOf(1), store.state.freeChannelSlots)
-        assertEquals(1, store.state.conversations[test]!!.size)
+        assertEquals(1, store.state.conversations[testThread]!!.size)
     }
 
     @Test
     fun `a channel thread survives the log`() {
         slot(0, "Public", public)
         said(0, "Ada Whitlock: kept")
-        store.recordChannelSent(public, "mine", 2)
+        store.recordChannelSent(publicThread, "mine", 2)
         store.onChannelSent()
 
         val back = MessageLog.decode(MessageLog.encode(store.state.conversations))
-        val thread = back.conversations[public]!!
+        val thread = back.conversations[publicThread]!!
         assertEquals(listOf("Ada Whitlock: kept", "mine"), thread.map { it.text })
         assertEquals(Delivery.SENT, thread.last().delivery)
     }

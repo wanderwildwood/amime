@@ -23,6 +23,8 @@ class MessageLog(private val file: File) {
         val conversations: Map<List<Byte>, List<Message>> = emptyMap(),
         val nextId: Long = 1L,
         val readUpTo: Map<List<Byte>, Long> = emptyMap(),
+        /** Read from the earlier format, so worth writing again at once in this one. */
+        val former: Boolean = false,
     )
 
     /**
@@ -48,7 +50,7 @@ class MessageLog(private val file: File) {
             mayWrite = false
             return Restored()
         }
-        if (text.isBlank() || text.lineSequence().first() == HEADER) {
+        if (text.isBlank() || text.lineSequence().first().let { it == HEADER || it == FORMER_HEADER }) {
             runCatching { decode(text) }.getOrNull()?.let {
                 mayWrite = true
                 return it
@@ -110,7 +112,19 @@ class MessageLog(private val file: File) {
          * format is how a message from some future version arrives in this one as a row of
          * replacement characters that the reader then cannot delete.
          */
-        private const val HEADER = "amime-messages 1"
+        private const val HEADER = "amime-messages 2"
+
+        /**
+         * The format before channel threads were filed under a digest of the channel's key.
+         *
+         * In it a MeshCore channel's thread sat under the channel's secret itself. Read, every
+         * channel-sized key is passed through [Channel.threadKey], which is what this version
+         * files the same channel under; a person's prefix is shorter and stays as it was.
+         */
+        private const val FORMER_HEADER = "amime-messages 1"
+
+        /** A channel's thread key is sixteen bytes; a person's prefix is six or four. */
+        private const val CHANNEL_KEY_BYTES = 16
 
         private const val ABSENT = "-"
 
@@ -156,7 +170,14 @@ class MessageLog(private val file: File) {
 
         fun decode(text: String): Restored {
             val lines = text.lineSequence().iterator()
-            if (!lines.hasNext() || lines.next() != HEADER) return Restored()
+            if (!lines.hasNext()) return Restored()
+            val former = when (lines.next()) {
+                HEADER -> false
+                FORMER_HEADER -> true
+                else -> return Restored()
+            }
+            fun filed(key: List<Byte>): List<Byte> =
+                if (former && key.size >= CHANNEL_KEY_BYTES) Channel.threadKey(key) else key
 
             val conversations = linkedMapOf<List<Byte>, MutableList<Message>>()
             val readUpTo = linkedMapOf<List<Byte>, Long>()
@@ -165,13 +186,13 @@ class MessageLog(private val file: File) {
                 if (line.isEmpty()) continue
                 val field = line.split('\t', limit = FIELDS)
                 if (field.size >= 3 && field[0] == READ_MARK) {
-                    val prefix = runCatching { hex(field[1]) }.getOrNull() ?: continue
+                    val prefix = runCatching { hex(field[1]) }.getOrNull()?.let { filed(it) } ?: continue
                     val id = field[2].toLongOrNull() ?: continue
                     readUpTo[prefix] = id
                     continue
                 }
                 if (field.size < FIELDS) continue
-                val prefix = runCatching { hex(field[0]) }.getOrNull() ?: continue
+                val prefix = runCatching { hex(field[0]) }.getOrNull()?.let { filed(it) } ?: continue
                 val id = field[1].toLongOrNull() ?: continue
                 if (id > highestId) highestId = id
                 conversations.getOrPut(prefix) { mutableListOf() }.add(
@@ -190,7 +211,7 @@ class MessageLog(private val file: File) {
                     ),
                 )
             }
-            return Restored(conversations, highestId + 1, readUpTo)
+            return Restored(conversations, highestId + 1, readUpTo, former)
         }
 
         /**
