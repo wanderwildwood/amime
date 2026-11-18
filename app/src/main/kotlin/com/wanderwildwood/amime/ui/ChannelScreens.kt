@@ -252,7 +252,8 @@ fun ChannelEditScreen(
                             TextMMD(text = stringResource(R.string.mtx_key_paste_label), style = MaterialTheme.typography.labelSmall)
                             TextFieldMMD(
                                 value = pasted, onValueChange = { pasted = it }, singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, autoCorrectEnabled = false),
+                                // A password field to the keyboard, so it neither suggests nor learns the key.
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
                                 modifier = Modifier.fillMaxWidth(),
                             )
                             if (pasted.isNotBlank() && pastedKey == null) {
@@ -413,8 +414,9 @@ fun PasteLinkDialog(onDismiss: () -> Unit, onRead: (String) -> Unit) {
         TextMMD(text = stringResource(R.string.mtx_paste_label), style = MaterialTheme.typography.labelSmall)
         TextFieldMMD(
             value = text, onValueChange = { text = it },
-            // Done on the keyboard reads the link.
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false, imeAction = ImeAction.Done),
+            // Done on the keyboard reads the link. A password field to the keyboard: the link
+            // carries every channel's key, and the keyboard is not to learn it.
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false, imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { if (text.isNotBlank()) onRead(text) }),
             modifier = Modifier.fillMaxWidth().focusRequester(field),
         )

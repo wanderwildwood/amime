@@ -30,6 +30,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 
 /**
  * One channel in the list, above the people.
@@ -135,7 +136,8 @@ fun JoinChannelDialog(onDismiss: () -> Unit, onJoin: (String, String) -> String?
             },
             modifier = Modifier.fillMaxWidth().focusRequester(keyField),
             singleLine = true,
-            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, imeAction = ImeAction.Done),
+            // A password field to the keyboard, so it neither suggests nor learns the key.
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false, imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { if (name.isNotBlank()) join() }),
         )
         refusal?.let {
