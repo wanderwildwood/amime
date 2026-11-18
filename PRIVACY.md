@@ -51,7 +51,9 @@ Your conversations, in the app's own private storage, as a file of plain lines. 
 One exception: if the file was ever left in a form this version cannot read (written by a later
 version, or damaged), it is moved aside, to `conversations.unreadable` or a numbered name beside
 it, and kept untouched rather than written over. Delete and the 500-message limit do not reach
-that copy. Clearing the app's storage in Android's settings, or uninstalling the app, removes it.
+that copy. While one is there, a row at the foot of the main list saves a copy of it wherever you
+choose through Android's save dialog; nothing is sent anywhere else. Clearing the app's storage in
+Android's settings, or uninstalling the app, removes it.
 
 Beside them, in the app's private settings: a position you typed in, if you did, whether the
 list of people is sorted nearest first, and whether dark mode is on. When Home is installed,

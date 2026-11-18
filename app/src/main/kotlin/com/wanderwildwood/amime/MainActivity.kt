@@ -98,6 +98,14 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
     val pairing by viewModel.pairing.collectAsStateWithLifecycle()
     val connecting by viewModel.connecting.collectAsStateWithLifecycle()
     val searched by viewModel.searched.collectAsStateWithLifecycle()
+    val setAside by viewModel.setAside.collectAsStateWithLifecycle()
+    // A kept-aside log goes out through the save picker; the name is held while it is open.
+    var savingAside by remember { mutableStateOf<String?>(null) }
+    val saveAside = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+        val name = savingAside
+        savingAside = null
+        if (uri != null && name != null) viewModel.saveSetAside(name, uri)
+    }
     val context0 = androidx.compose.ui.platform.LocalContext.current
     // The permission is Android's to give, and Android stops showing the question after two
     // refusals; the app's own settings page is then the only place left to give it.
@@ -433,6 +441,11 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
             onSettings = { page = MtPage.Settings },
             nearestFirst = nearest,
             onNearestFirst = viewModel::toggleNearestFirst,
+            setAside = setAside,
+            onSaveSetAside = { name ->
+                savingAside = name
+                saveAside.launch("mesh-$name.txt")
+            },
         )
     }
 }

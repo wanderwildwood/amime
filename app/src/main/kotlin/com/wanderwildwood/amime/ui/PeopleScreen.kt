@@ -71,6 +71,9 @@ fun PeopleScreen(
     onSettings: () -> Unit = {},
     nearestFirst: Boolean = false,
     onNearestFirst: () -> Unit = {},
+    /** Conversation logs this version could not read, kept aside; each can be saved off the phone. */
+    setAside: List<String> = emptyList(),
+    onSaveSetAside: (String) -> Unit = {},
 ) {
     val meshtastic = state.radio == RadioKind.MESHTASTIC
     var aboutOpen by remember { mutableStateOf(false) }
@@ -150,6 +153,7 @@ fun PeopleScreen(
             val channels = state.channels
             if (channels.isEmpty() && state.people.isEmpty()) {
                 Empty(state, Modifier.weight(1f))
+                setAside.forEach { SetAsideRow(it, onSaveSetAside) }
             } else {
                 PagedColumn(modifier = Modifier.weight(1f).fillMaxWidth(), showCutRow = true) {
                     items(channels.size) { index ->
@@ -210,6 +214,8 @@ fun PeopleScreen(
                             },
                         )
                     }
+                    // Last, and only while there is one: a log that could not be read, to save.
+                    items(setAside.size) { index -> SetAsideRow(setAside[index], onSaveSetAside) }
                 }
             }
 
@@ -549,4 +555,17 @@ fun PersonHeader(person: Person, here: GeoPoint?) {
                 .padding(vertical = 10.dp),
         )
     }
+}
+
+/**
+ * A conversation log this version could not read (a later version's, or damaged), kept aside
+ * untouched. Tapping it saves a copy through the save picker; nothing here deletes it.
+ */
+@Composable
+private fun SetAsideRow(name: String, onSave: (String) -> Unit) {
+    BorderedRow(
+        title = stringResource(R.string.aside_row),
+        line = stringResource(R.string.aside_row_line, name),
+        onClick = { onSave(name) },
+    )
 }

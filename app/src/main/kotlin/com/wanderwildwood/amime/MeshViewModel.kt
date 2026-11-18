@@ -101,6 +101,26 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
     private val log = MessageLog(File(getApplication<Application>().filesDir, "conversations"))
 
     /**
+     * The names of conversation logs this version could not read and kept aside, untouched.
+     * Each is offered back through the save picker, so getting one off the phone needs no cable.
+     */
+    private val _setAside = MutableStateFlow<List<String>>(emptyList())
+    val setAside: StateFlow<List<String>> = _setAside.asStateFlow()
+
+    /** Copy the kept-aside log [name] to where the save picker said, and say how it went. */
+    fun saveSetAside(name: String, to: android.net.Uri) {
+        val app = getApplication<Application>()
+        viewModelScope.launch(Dispatchers.IO) {
+            val saved = runCatching {
+                val file = log.setAside().first { it.name == name }
+                val out = app.contentResolver.openOutputStream(to) ?: error("no stream")
+                out.use { o -> file.inputStream().use { it.copyTo(o) } }
+            }.isSuccess
+            _problem.value = say(if (saved) R.string.aside_saved else R.string.aside_not_saved)
+        }
+    }
+
+    /**
      * The conversations waiting to be written.
      *
      * A [MutableStateFlow] rather than a queue because it conflates: a burst of twenty
@@ -245,6 +265,7 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
         // What survived the last time the process went away. The radio does not keep a copy:
         // a message it has handed over is a message it no longer has.
         val restored = log.read()
+        _setAside.value = log.setAside().map { it.name }
         store.restore(restored.conversations, restored.nextId, restored.readUpTo)
 
         viewModelScope.launch(Dispatchers.IO) {

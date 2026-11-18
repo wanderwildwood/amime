@@ -323,4 +323,22 @@ class MessageLogTest {
         assertTrue(runCatching { log.write(mapOf(ridge to listOf(message(1)))) }.isFailure)
         assertTrue(file.isDirectory)
     }
+
+    @Test
+    fun `every log kept aside is listed, the first one first, and nothing else`() {
+        val file = File(folder.root, "conversations")
+        val log = MessageLog(file)
+        assertEquals(emptyList<File>(), log.setAside())
+
+        log.write(mapOf(ridge to listOf(message(1))))
+        log.unreadable.writeText("amime-messages 3\nolder\n")
+        File(folder.root, "conversations.unreadable-10").writeText("x")
+        File(folder.root, "conversations.unreadable-2").writeText("y")
+        File(folder.root, "conversations.unreadable-note").writeText("not one")
+
+        assertEquals(
+            listOf("conversations.unreadable", "conversations.unreadable-2", "conversations.unreadable-10"),
+            log.setAside().map { it.name },
+        )
+    }
 }

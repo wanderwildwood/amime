@@ -64,6 +64,18 @@ class MessageLog(private val file: File) {
     /** Where a log this version cannot read is kept, untouched. */
     val unreadable: File get() = File(file.parentFile, file.name + ".unreadable")
 
+    /**
+     * Every log kept aside as unreadable, [unreadable] first and then the numbered ones in order.
+     * The app offers each back through the save picker, so none needs a cable and a computer.
+     */
+    fun setAside(): List<File> {
+        val base = unreadable.name
+        return file.parentFile?.listFiles()
+            ?.filter { it.isFile && (it.name == base || (it.name.startsWith("$base-") && it.name.removePrefix("$base-").toIntOrNull() != null)) }
+            ?.sortedBy { if (it.name == base) 1 else it.name.removePrefix("$base-").toInt() }
+            .orEmpty()
+    }
+
     /** False while the log on disk is one that was not read, and so must not be written over. */
     @Volatile private var mayWrite = true
 

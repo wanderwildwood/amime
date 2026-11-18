@@ -155,6 +155,10 @@
     <string name="problem_no_key">This contact arrived without a full key, so there is no way to log in to it.</string>
     <string name="problem_channel_refused">The radio would not take that channel.</string>
     <string name="problem_not_saving">Messages are not being saved on this phone.</string>
+    <string name="aside_row">Save an older conversations file</string>
+    <string name="aside_row_line">%1$s could not be read by this version and was kept aside. Tap to save a copy.</string>
+    <string name="aside_saved">A copy of the older conversations file was saved.</string>
+    <string name="aside_not_saved">The older conversations file could not be saved.</string>
 
     <string name="ble_refused">The Bluetooth stack would not take another operation.</string>
     <string name="ble_no_answer">The Bluetooth link stopped answering, so one frame was given up on.</string>

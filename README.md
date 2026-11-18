@@ -200,7 +200,9 @@ reclaimed the process. A message that was still in flight when that happened com
 state of its own rather than as one still waiting — the acknowledgment it wanted went past
 while nothing was listening, and saying it is still pending would be a claim nobody can make.
 Each conversation keeps its newest 500 messages, and **Delete** at the top of a conversation
-removes its messages from the phone.
+removes its messages from the phone. If the file was ever left in a form this version
+cannot read, it is kept aside untouched, and a row at the foot of the main list saves a copy of
+it through Android's save dialog.
 
 Beside them the app keeps three small settings: a position you typed in, if you did, whether
 the list of people is sorted nearest first, and whether dark mode is on. Contacts come off the
