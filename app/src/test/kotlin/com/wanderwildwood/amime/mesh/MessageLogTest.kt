@@ -216,4 +216,32 @@ class MessageLogTest {
         assertEquals("amime-messages 2\nsomething newer\n", log.unreadable.readText())
         assertEquals(1, log.read().conversations.getValue(ridge).size)
     }
+
+    @Test
+    fun `a second log this version cannot read is kept aside beside the first`() {
+        val file = File(folder.root, "conversations")
+        val log = MessageLog(file)
+        log.unreadable.writeText("amime-messages 2\nolder\n")
+        file.writeText("amime-messages 3\nnewer\n")
+
+        log.read()
+        log.write(mapOf(ridge to listOf(message(1, "first"))))
+
+        assertEquals("amime-messages 2\nolder\n", log.unreadable.readText())
+        assertEquals("amime-messages 3\nnewer\n", File(folder.root, "conversations.unreadable-2").readText())
+    }
+
+    @Test
+    fun `a log that cannot be opened is neither moved aside nor written over`() {
+        // A folder in its place: there, but readText fails on it.
+        val file = File(folder.root, "conversations")
+        assertTrue(file.mkdir())
+        val log = MessageLog(file)
+
+        assertEquals(emptyMap<List<Byte>, List<Message>>(), log.read().conversations)
+        assertTrue(file.isDirectory)
+        assertTrue(!log.unreadable.exists())
+        assertTrue(runCatching { log.write(mapOf(ridge to listOf(message(1)))) }.isFailure)
+        assertTrue(file.isDirectory)
+    }
 }

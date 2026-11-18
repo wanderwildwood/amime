@@ -29,21 +29,52 @@ class MessageLog(private val file: File) {
      * Read the log, treating anything unreadable as absent rather than as a reason to fail.
      *
      * A file that is there but cannot be read (another format, a later version's) is moved
-     * aside to [unreadable] first, so the next write does not put an empty log over it.
+     * aside first, to [unreadable] or, where an earlier one already sits there, to a name of
+     * its own beside it, so the next write does not put an empty log over it.
+     *
+     * A file that could not be opened just now is another matter: that says nothing about
+     * what is in it. It is left where it is, and [write] refuses until a read succeeds, so
+     * the log is never replaced by one that never saw it.
      */
     @Synchronized
     fun read(): Restored {
-        if (!file.exists()) return Restored()
-        val text = runCatching { file.readText() }.getOrNull()
-        if (text != null && (text.isBlank() || text.lineSequence().first() == HEADER)) {
-            runCatching { decode(text) }.getOrNull()?.let { return it }
+        if (!file.exists()) {
+            mayWrite = true
+            return Restored()
         }
-        if (!unreadable.exists()) file.renameTo(unreadable)
+        val text = try {
+            file.readText()
+        } catch (e: Exception) {
+            mayWrite = false
+            return Restored()
+        }
+        if (text.isBlank() || text.lineSequence().first() == HEADER) {
+            runCatching { decode(text) }.getOrNull()?.let {
+                mayWrite = true
+                return it
+            }
+        }
+        // Only once it is safely aside may a new log take its name.
+        mayWrite = file.renameTo(aside())
         return Restored()
     }
 
     /** Where a log this version cannot read is kept, untouched. */
     val unreadable: File get() = File(file.parentFile, file.name + ".unreadable")
+
+    /** False while the log on disk is one that was not read, and so must not be written over. */
+    @Volatile private var mayWrite = true
+
+    /** [unreadable], or the first free numbered name beside it: an earlier one is never replaced. */
+    private fun aside(): File {
+        if (!unreadable.exists()) return unreadable
+        var n = 2
+        while (true) {
+            val next = File(file.parentFile, "${unreadable.name}-$n")
+            if (!next.exists()) return next
+            n++
+        }
+    }
 
     /**
      * Write the whole log.
@@ -57,6 +88,7 @@ class MessageLog(private val file: File) {
         conversations: Map<List<Byte>, List<Message>>,
         readUpTo: Map<List<Byte>, Long> = emptyMap(),
     ) {
+        if (!mayWrite) throw java.io.IOException("${file.name} was not read, so it is not written over")
         // Synced before the rename, so a power cut never leaves the new name on an empty file.
         val temporary = File(file.parentFile, file.name + ".writing")
         java.io.FileOutputStream(temporary).use { out ->
