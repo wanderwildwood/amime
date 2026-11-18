@@ -118,6 +118,15 @@ class MeshStoreTest {
     // ---- people ----
 
     @Test
+    fun `another radio's people go, and their conversations stay`() {
+        store.onContact(contact("ridge-node", key = 0x11))
+        store.mtReceived(ridge, "hello", 1, null, null)
+        store.forgetPeople()
+        assertTrue(store.state.people.isEmpty())
+        assertEquals("hello", store.state.conversations[ridge]!!.single().text)
+    }
+
+    @Test
     fun `a contact becomes a person keyed by its prefix`() {
         store.onContact(contact("ridge-node", key = 0x11))
         val person = store.state.people.single()

@@ -217,6 +217,16 @@ class MeshStore(
         stranded.forEach { setDelivery(it, Delivery.UNRESOLVED) }
     }
 
+    /**
+     * Another radio is being connected: the people on the list were the last radio's contacts
+     * or nodes, and this one would refuse a message to them. Each radio sends its own list in
+     * full on connecting, so nothing is lost. Their conversations stay.
+     */
+    fun forgetPeople() {
+        if (state.people.isEmpty()) return
+        update { copy(people = emptyList()) }
+    }
+
     /** Begin administering a repeater. The answer comes back over the air, so this waits. */
     fun beginLogin(person: Person) = update {
         copy(admin = Admin(person = person, state = Admin.State.LOGGING_IN))

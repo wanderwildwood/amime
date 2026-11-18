@@ -427,6 +427,8 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
         stopScanning()
         _problem.value = null
         _connecting.value = radio.name
+        // A different radio: the last one's people are not this one's to write to.
+        if (radio.device.address != lastDevice?.address || radio.kind != kind) store.forgetPeople()
         kind = radio.kind
         lastDevice = radio.device
         if (kind == RadioKind.MESHTASTIC) {
