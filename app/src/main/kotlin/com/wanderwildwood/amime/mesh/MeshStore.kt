@@ -273,12 +273,15 @@ class MeshStore(
 
     /**
      * Throw away one thread's messages, a person's or a channel's. The person or channel
-     * stays; only what was said goes, and a send still waiting has nothing left to settle.
+     * stays; only what was said goes.
+     *
+     * A send still waiting on the radio's answer keeps its place in the reply queues: those
+     * are matched by position, and the radio will still answer it. Its answer then finds no
+     * row and settles nothing, instead of settling the next send in another thread.
      */
     fun deleteThread(key: List<Byte>) {
         if (key !in state.conversations && key !in state.readUpTo) return
-        unanswered.removeAll { it.first == key }
-        unansweredOnChannels.removeAll { it.first == key }
+        // A keyed map, not a queue: taking these out moves nobody else's answer.
         awaiting.values.removeAll { it.first == key }
         update { copy(
             // filterKeys, not minus: a key is a List, and minus would take it as a list of keys.

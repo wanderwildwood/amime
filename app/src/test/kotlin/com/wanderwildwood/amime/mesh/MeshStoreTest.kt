@@ -53,6 +53,22 @@ class MeshStoreTest {
     }
 
     @Test
+    fun `deleting a thread with a send in flight leaves the next send its own answer`() {
+        store.recordSent(ridge, "still going", 1)
+        store.recordSent(hollow, "next", 2)
+        store.deleteThread(ridge)
+
+        // The radio answers the deleted send first; it settles nothing.
+        store.onSent(sent(0x01), awaitingAck = true)
+        assertEquals(Delivery.SENDING, only(hollow).delivery)
+
+        store.onSent(sent(0x02), awaitingAck = true)
+        assertEquals(Delivery.AWAITING_ACK, only(hollow).delivery)
+        store.onDelivered(0x02, roundTripMs = 900)
+        assertEquals(Delivery.ACKNOWLEDGED, only(hollow).delivery)
+    }
+
+    @Test
     fun `a Meshtastic channel takes over what was kept under its slot, once`() {
         val bySlot = com.wanderwildwood.amime.meshtastic.MtSession.channelKey(1)
         val hikers = com.wanderwildwood.amime.meshtastic.MtSession.channelKey("Hikers", okio.ByteString.of(9))
