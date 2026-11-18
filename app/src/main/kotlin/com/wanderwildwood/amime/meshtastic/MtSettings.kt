@@ -284,7 +284,16 @@ private const val ROUTER_WARN =
     "A router repeats everything it hears, all the time. It belongs on a tower or a mountain top with nobody carrying it. " +
         "On a handheld or a roof it makes the mesh worse for everyone nearby."
 
-/** Every setting this app can change or show, grouped by [Part]. */
+/**
+ * Every setting this app can change or show, grouped by [Part].
+ *
+ * House-style exception, recorded on purpose (audit 2026-11-17): the labels, help lines and
+ * option names of the Meshtastic settings (here and in [Part]), and the two report labels in
+ * MtSession, are written in Kotlin rather than strings.xml. They sit beside the protocol field
+ * each one names, the app ships in English only, and about 150 of them move together whenever
+ * the firmware adds or renames a setting. Moving them to strings.xml is a session of its own if the app is ever
+ * translated. New text elsewhere in the app still goes in strings.xml.
+ */
 object MtFields {
     private val lora = Sect<Config.LoRaConfig>(Part.LORA, { it.lora }, { c, s -> c.copy(lora = s) })
     private val owner = Sect<User>(Part.OWNER, { it.owner }, { c, s -> c.copy(owner = s) })
