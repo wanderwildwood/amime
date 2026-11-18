@@ -18,6 +18,8 @@ Not a fork. Written from scratch in Kotlin, on Mudita's own
 | ![People on the mesh](screenshots/2-people.png) | ![A conversation](screenshots/3-conversation.png) |
 | ![A repeater](screenshots/4-repeater.png) | |
 
+Settings has a **Dark mode** switch (white on black); it also follows the phone's dark setting.
+
 ## Two kinds of radio
 
 Mesh talks to MeshCore radios and to Meshtastic radios. The scan names each one, and the
@@ -239,7 +241,8 @@ release build comes out unsigned, which will not install anywhere.
 
 ## Getting it, and keeping it
 
-Download <https://github.com/wanderwildwood/amime/releases/latest/download/amime.apk> and
+Needs Android 12 (API 31) or newer and a phone with Bluetooth LE. Download
+<https://github.com/wanderwildwood/amime/releases/latest/download/amime.apk> and
 sideload it. That address always points at the newest release, and every release publishes a
 `.sha256` beside the APK if you would rather check than trust.
 
