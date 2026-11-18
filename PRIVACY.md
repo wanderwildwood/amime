@@ -41,7 +41,7 @@ manifest, and it is worth naming rather than letting you find it:
 `com.wanderwildwood.amime.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`. It is not an Android
 permission and it asks nothing of you. AndroidX defines it inside this app's own package, at
 signature level, so that a broadcast receiver the app registers at runtime — the one that
-watches for the radio finishing pairing — is not exposed to other apps. Only something signed
+watches for Bluetooth being switched on or off — is not exposed to other apps. Only something signed
 with the same key could hold it, which means only this app. It is a lock, not a key.
 
 ## What is stored, and where
