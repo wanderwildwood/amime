@@ -263,25 +263,35 @@ class MeshStore(
      * channel put in an old slot starts a thread of its own instead of inheriting the old one's.
      *
      * Messages kept under the slot's number (from before threads were keyed this way, or that
-     * arrived before the slot was read) move into the channel now in that slot, once.
+     * arrived before the slot was read) move into the channel now in that slot, once. So do
+     * those kept under any of [former]: the keys the unnamed main channel had under another
+     * modem preset, which is the same channel shown under a new name.
      */
-    fun mtChannel(index: Int, name: String, enabled: Boolean, key: List<Byte>) = update {
+    fun mtChannel(
+        index: Int,
+        name: String,
+        enabled: Boolean,
+        key: List<Byte>,
+        former: List<List<Byte>> = emptyList(),
+    ) = update {
         val others = channels.filterNot { it.index == index }
         if (!enabled) {
             copy(channels = others)
         } else {
             val bySlot = com.wanderwildwood.amime.meshtastic.MtSession.channelKey(index)
-            val moved = conversations[bySlot]
+            val from = (listOf(bySlot) + former).distinct().filter { it != key && conversations[it] != null }
             // The thread key is already a digest of name and key: it stands in for the secret too.
             val withChannel = copy(channels = (others + Channel(index, name, key, key)).sortedBy { it.index })
-            if (moved == null || bySlot == key) {
+            if (from.isEmpty()) {
                 withChannel
             } else {
-                val read = listOfNotNull(readUpTo[bySlot], readUpTo[key]).maxOrNull()
+                val moved = from.flatMap { conversations[it].orEmpty() }
+                val read = (from + listOf(key)).mapNotNull { readUpTo[it] }.maxOrNull()
                 withChannel.copy(
-                    conversations = conversations.filterKeys { it != bySlot } +
+                    // filterKeys, not minus: a key is a List, and minus would take it as a list of keys.
+                    conversations = conversations.filterKeys { it !in from } +
                         (key to (moved + conversations[key].orEmpty()).sortedBy { it.id }),
-                    readUpTo = readUpTo.filterKeys { it != bySlot }.let { if (read == null) it else it + (key to read) },
+                    readUpTo = readUpTo.filterKeys { it !in from }.let { if (read == null) it else it + (key to read) },
                 )
             }
         }

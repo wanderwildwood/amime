@@ -99,7 +99,7 @@ private class Events : MtSession.Listener {
     override fun onReady(name: String, firmware: String) { log += "ready"; this.name = name }
     override fun onNode(node: MtNode) { nodes[node.num] = node }
     override fun onSelfPosition(latitude: Double, longitude: Double) { selfPosition = latitude to longitude }
-    override fun onChannel(index: Int, name: String, enabled: Boolean, primary: Boolean, key: List<Byte>) { channels += Triple(index, name, enabled) }
+    override fun onChannel(index: Int, name: String, enabled: Boolean, primary: Boolean, key: List<Byte>, former: List<List<Byte>>) { channels += Triple(index, name, enabled) }
     override fun onChannelsLoaded() { log += "channels" }
     override fun onRegion(region: Int) { this.region = region }
     override fun onText(from: Long, channel: Int?, text: String, time: Long, snr: Float?, hops: Int?) {

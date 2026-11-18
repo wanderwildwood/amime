@@ -115,6 +115,38 @@ class MeshStoreTest {
         assertEquals(1, store.state.conversations[hikers]!!.size)
     }
 
+    @Test
+    fun `the unnamed main channel keeps its thread across a modem preset change`() {
+        val psk = okio.ByteString.of(1)
+        val longFast = com.wanderwildwood.amime.meshtastic.MtSession.channelKey("LongFast", psk)
+        val mediumFast = com.wanderwildwood.amime.meshtastic.MtSession.channelKey("MediumFast", psk)
+        store.mtChannel(0, "LongFast", true, longFast)
+        store.mtReceived(longFast, "Ada Whitlock: before", 1, null, null)
+        store.markRead(longFast)
+
+        store.onDisconnected()
+        store.mtChannel(0, "MediumFast", true, mediumFast, former = listOf(longFast))
+
+        assertNull(store.state.conversations[longFast])
+        assertNull(store.state.readUpTo[longFast])
+        assertEquals(listOf("Ada Whitlock: before"), store.state.conversations[mediumFast]!!.map { it.text })
+        assertEquals(0, store.state.unreadCount(mediumFast))
+    }
+
+    @Test
+    fun `a renamed channel still starts a thread of its own`() {
+        val psk = okio.ByteString.of(1)
+        val longFast = com.wanderwildwood.amime.meshtastic.MtSession.channelKey("LongFast", psk)
+        val base = com.wanderwildwood.amime.meshtastic.MtSession.channelKey("Base", psk)
+        store.mtChannel(0, "LongFast", true, longFast)
+        store.mtReceived(longFast, "before", 1, null, null)
+
+        store.mtChannel(0, "Base", true, base)
+
+        assertNull(store.state.conversations[base])
+        assertEquals(1, store.state.conversations[longFast]!!.size)
+    }
+
     // ---- people ----
 
     @Test

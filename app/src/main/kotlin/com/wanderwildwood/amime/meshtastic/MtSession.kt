@@ -92,8 +92,18 @@ class MtSession(
         /**
          * One channel slot: an empty [name] is the default channel, shown as its preset.
          * [key] is what its thread is filed under, from the name and the channel key together.
+         * [former] is, for the unnamed main channel only, the keys it had under the other modem
+         * presets with the same channel key: a preset change is the same channel, and its
+         * thread goes with it.
          */
-        fun onChannel(index: Int, name: String, enabled: Boolean, primary: Boolean, key: List<Byte>) {}
+        fun onChannel(
+            index: Int,
+            name: String,
+            enabled: Boolean,
+            primary: Boolean,
+            key: List<Byte>,
+            former: List<List<Byte>> = emptyList(),
+        ) {}
 
         /** All the channels the handshake carries have arrived. */
         fun onChannelsLoaded() {}
@@ -298,16 +308,40 @@ class MtSession(
     }
 
     private fun emitChannel(c: org.meshtastic.proto.Channel) {
-        val name = c.settings?.name.orEmpty().ifEmpty {
-            if (c.role == org.meshtastic.proto.Channel.Role.PRIMARY) presetName() else "Channel ${c.index}"
-        }
+        val name = shownName(c)
+        val key = channelKey(name, c.settings?.psk ?: okio.ByteString.EMPTY)
         listener.onChannel(
             index = c.index,
             name = name,
             enabled = c.role != org.meshtastic.proto.Channel.Role.DISABLED,
             primary = c.role == org.meshtastic.proto.Channel.Role.PRIMARY,
-            key = channelKey(name, c.settings?.psk ?: okio.ByteString.EMPTY),
+            key = key,
+            former = presetKeys(c, key),
         )
+    }
+
+    /** A channel's own name, or for one without: the preset for the main channel, its number for another. */
+    private fun shownName(c: org.meshtastic.proto.Channel): String = c.settings?.name.orEmpty().ifEmpty {
+        if (c.role == org.meshtastic.proto.Channel.Role.PRIMARY) presetName() else "Channel ${c.index}"
+    }
+
+    /**
+     * The keys the unnamed main channel's thread had under every other modem preset, with the
+     * same channel key: changing the preset renames it on screen but leaves it the same channel.
+     * Nothing for a channel with a name of its own, so a rename still starts a thread of its own.
+     * A key that another channel on this radio files under now is left to that channel.
+     */
+    private fun presetKeys(c: org.meshtastic.proto.Channel, key: List<Byte>): List<List<Byte>> {
+        if (c.role != org.meshtastic.proto.Channel.Role.PRIMARY || c.settings?.name.orEmpty().isNotEmpty()) return emptyList()
+        val psk = c.settings?.psk ?: okio.ByteString.EMPTY
+        val taken = channels.values
+            .filter { it.index != c.index && it.role != org.meshtastic.proto.Channel.Role.DISABLED }
+            .map { channelKey(shownName(it), it.settings?.psk ?: okio.ByteString.EMPTY) }
+            .toSet()
+        return Config.LoRaConfig.ModemPreset.entries
+            .map { channelKey(presetLabel(it), psk) }
+            .distinct()
+            .filter { it != key && it !in taken }
     }
 
     /** The default channel has no name of its own: it is shown as the modem preset, LongFast and so on. */

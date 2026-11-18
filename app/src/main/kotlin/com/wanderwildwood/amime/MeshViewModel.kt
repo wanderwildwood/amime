@@ -752,8 +752,14 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
             if (typedPosition == null) store.mtHere(radioPosition)
         }
 
-        override fun onChannel(index: Int, name: String, enabled: Boolean, primary: Boolean, key: List<Byte>) =
-            store.mtChannel(index, name, enabled, key)
+        override fun onChannel(
+            index: Int,
+            name: String,
+            enabled: Boolean,
+            primary: Boolean,
+            key: List<Byte>,
+            former: List<List<Byte>>,
+        ) = store.mtChannel(index, name, enabled, key, former)
 
         override fun onChannelsLoaded() = store.mtChannelsLoaded()
 

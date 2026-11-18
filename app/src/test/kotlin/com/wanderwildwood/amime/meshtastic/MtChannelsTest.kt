@@ -67,6 +67,11 @@ private class ChanRadio(
 }
 
 private class Seen : MtSession.Listener {
+    /** Each slot's thread key and the keys it may take a thread over from, by slot. */
+    val formers = mutableMapOf<Int, Pair<List<Byte>, List<List<Byte>>>>()
+    override fun onChannel(index: Int, name: String, enabled: Boolean, primary: Boolean, key: List<Byte>, former: List<List<Byte>>) {
+        formers[index] = key to former
+    }
     var infos: List<MtChannelInfo> = emptyList()
     var configs: MtConfigs? = null
     val answers = mutableListOf<Boolean>()
@@ -396,5 +401,27 @@ class MtChannelsTest {
         ).encode()
         session.onFromNum()
         assertEquals(listOf(true), seen.answers)
+    }
+
+    @Test
+    fun only_the_unnamed_main_channel_offers_its_keys_under_other_presets() {
+        val radio = ChanRadio(
+            slots(PRIMARY, OPS),
+            lora = Config.LoRaConfig(
+                region = Config.LoRaConfig.RegionCode.US, use_preset = true,
+                modem_preset = Config.LoRaConfig.ModemPreset.MEDIUM_FAST,
+            ),
+        )
+        val seen = Seen()
+        val session = MtSession(radio, seen, clock = { 5000 }, configId = NONCE)
+        radio.session = session
+        session.start()
+
+        val (key, former) = seen.formers.getValue(0)
+        assertEquals(MtSession.channelKey("MediumFast", ChannelKeys.DEFAULT), key)
+        assertTrue(MtSession.channelKey("LongFast", ChannelKeys.DEFAULT) in former)
+        assertFalse(key in former)
+        // A channel with a name of its own: a new name is a new thread.
+        assertTrue(seen.formers.getValue(1).second.isEmpty())
     }
 }
