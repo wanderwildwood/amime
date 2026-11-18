@@ -185,3 +185,26 @@ fun LeaveChannelAction(onLeave: () -> Unit) {
             .padding(horizontal = 12.dp, vertical = 14.dp),
     )
 }
+
+/**
+ * Delete a thread's messages, a person's or a channel's: armed, because nothing brings them
+ * back. Who or what the thread was with stays.
+ */
+@Composable
+fun DeleteThreadAction(onDelete: () -> Unit) {
+    var armed by rememberArmedFlag()
+    TextMMD(
+        text = stringResource(if (armed) R.string.thread_delete_armed else R.string.thread_delete),
+        style = MaterialTheme.typography.bodySmall,
+        modifier = Modifier
+            .clickableTarget {
+                if (armed) {
+                    armed = false
+                    onDelete()
+                } else {
+                    armed = true
+                }
+            }
+            .padding(horizontal = 12.dp, vertical = 14.dp),
+    )
+}

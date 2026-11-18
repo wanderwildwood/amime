@@ -30,6 +30,45 @@ class MeshStoreTest {
         store = MeshStore(now = { clock })
     }
 
+    // ---- keeping threads in bounds ----
+
+    @Test
+    fun `a thread keeps its newest five hundred messages`() {
+        repeat(MeshStore.MAX_PER_THREAD + 20) { store.mtReceived(ridge, "m$it", it.toLong(), null, null) }
+        val thread = store.state.conversations[ridge]!!
+        assertEquals(MeshStore.MAX_PER_THREAD, thread.size)
+        assertEquals("m20", thread.first().text)
+        assertEquals("m${MeshStore.MAX_PER_THREAD + 19}", thread.last().text)
+    }
+
+    @Test
+    fun `deleting a thread takes its messages and leaves the others`() {
+        store.mtReceived(ridge, "hello", 1, null, null)
+        store.mtReceived(hollow, "there", 2, null, null)
+        store.markRead(ridge)
+        store.deleteThread(ridge)
+        assertNull(store.state.conversations[ridge])
+        assertNull(store.state.readUpTo[ridge])
+        assertEquals("there", store.state.conversations[hollow]!!.single().text)
+    }
+
+    @Test
+    fun `a Meshtastic channel takes over what was kept under its slot, once`() {
+        val bySlot = com.wanderwildwood.amime.meshtastic.MtSession.channelKey(1)
+        val hikers = com.wanderwildwood.amime.meshtastic.MtSession.channelKey("Hikers", okio.ByteString.of(9))
+        store.mtReceived(bySlot, "old", 1, null, null)
+        store.mtChannel(1, "Hikers", true, hikers)
+        assertNull(store.state.conversations[bySlot])
+        assertEquals(listOf("old"), store.state.conversations[hikers]!!.map { it.text })
+        assertEquals(hikers, store.state.channels.single().key)
+
+        // Another channel later put in the same slot starts a thread of its own.
+        val cavers = com.wanderwildwood.amime.meshtastic.MtSession.channelKey("Cavers", okio.ByteString.of(7))
+        store.mtChannel(1, "Cavers", true, cavers)
+        assertNull(store.state.conversations[cavers])
+        assertEquals(1, store.state.conversations[hikers]!!.size)
+    }
+
     // ---- people ----
 
     @Test

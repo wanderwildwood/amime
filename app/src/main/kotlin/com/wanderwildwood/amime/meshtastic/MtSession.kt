@@ -89,8 +89,11 @@ class MtSession(
         /** This radio's own position, when it has a fix. */
         fun onSelfPosition(latitude: Double, longitude: Double) {}
 
-        /** One channel slot: an empty [name] is the default channel, shown as its preset. */
-        fun onChannel(index: Int, name: String, enabled: Boolean, primary: Boolean) {}
+        /**
+         * One channel slot: an empty [name] is the default channel, shown as its preset.
+         * [key] is what its thread is filed under, from the name and the channel key together.
+         */
+        fun onChannel(index: Int, name: String, enabled: Boolean, primary: Boolean, key: List<Byte>) {}
 
         /** All the channels the handshake carries have arrived. */
         fun onChannelsLoaded() {}
@@ -303,6 +306,7 @@ class MtSession(
             name = name,
             enabled = c.role != org.meshtastic.proto.Channel.Role.DISABLED,
             primary = c.role == org.meshtastic.proto.Channel.Role.PRIMARY,
+            key = channelKey(name, c.settings?.psk ?: okio.ByteString.EMPTY),
         )
     }
 
@@ -827,9 +831,26 @@ class MtSession(
 
         fun numOf(key: List<Byte>): Long = key.fold(0L) { acc, b -> (acc shl 8) or (b.toLong() and 0xFF) }
 
-        /** The key a channel's thread is filed under: sixteen bytes, so never a person's. */
+        /**
+         * The key a slot's thread was filed under before threads followed the channel: sixteen
+         * bytes, so never a person's. Still where a message lands before its slot is read.
+         */
         fun channelKey(index: Int): List<Byte> =
             "meshtastic-ch".encodeToByteArray().toList().plus(listOf(0, 0, index.toByte()))
+
+        /**
+         * The key a channel's thread is filed under: sixteen bytes taken from the channel's
+         * name and key, so the same channel finds its thread in any slot, and a different
+         * channel in a slot that was used before starts a thread of its own.
+         */
+        fun channelKey(name: String, psk: okio.ByteString): List<Byte> {
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            digest.update("meshtastic-channel\u0000".encodeToByteArray())
+            digest.update(name.encodeToByteArray())
+            digest.update(0)
+            digest.update(psk.toByteArray())
+            return digest.digest().take(16)
+        }
 
         /** Below 2.5 there is no PKI and hop counts cannot be trusted. */
         fun isTooOld(firmware: String): Boolean {

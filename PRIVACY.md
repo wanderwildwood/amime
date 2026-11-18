@@ -46,7 +46,7 @@ with the same key could hold it, which means only this app. It is a lock, not a 
 
 ## What is stored, and where
 
-Your conversations, in the app's own private storage, as a file of plain lines. Nowhere else.
+Your conversations, in the app's own private storage, as a file of plain lines. Nowhere else. Each conversation keeps its newest 500 messages, and **Delete** at the top of a conversation removes its messages from the phone.
 
 Beside them, in the app's private settings: a position you typed in, if you did, whether the
 list of people is sorted nearest first, and whether dark mode is on. When Home is installed,
@@ -133,5 +133,5 @@ If you are in the EU, the EEA or the UK, the GDPR gives you the right to:
 
 Similar laws elsewhere, such as the CCPA in California, give you the right to know, delete and correct, and to opt out of the sale or sharing of your data. Nothing from Mesh is sold or shared.
 
-Since Mesh keeps what it stores only on your phone, you can exercise most of these rights yourself: remove a channel from your radio or stop using a fixed position in the app, clear the app's data in Android's settings, or uninstall the app, which deletes all of it. For anything you cannot do yourself, write to the address above.
+Since Mesh keeps what it stores only on your phone, you can exercise most of these rights yourself: delete a conversation's messages, remove a channel from your radio or stop using a fixed position in the app, clear the app's data in Android's settings, or uninstall the app, which deletes all of it. For anything you cannot do yourself, write to the address above.
 <!-- /shared-about privacy section -->

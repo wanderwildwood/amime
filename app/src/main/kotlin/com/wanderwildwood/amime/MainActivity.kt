@@ -34,6 +34,7 @@ import com.wanderwildwood.amime.ui.regionName
 import com.wanderwildwood.amime.meshtastic.ImportPlan
 import com.wanderwildwood.amime.meshtastic.MtChannelInfo
 import com.wanderwildwood.amime.protocol.Sizes
+import com.wanderwildwood.amime.ui.DeleteThreadAction
 import com.wanderwildwood.amime.ui.LeaveChannelAction
 import com.wanderwildwood.amime.ui.ConsoleScreen
 import com.wanderwildwood.amime.ui.ConversationScreen
@@ -333,6 +334,9 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
             onSend = { viewModel.sendToChannel(channel, it) },
             onBack = closeChannel,
             actions = {
+                if (state.conversations[channel.key].orEmpty().isNotEmpty()) {
+                    DeleteThreadAction { viewModel.deleteThread(channel) }
+                }
                 // Public is every radio's from the start, and the one place a stranger can be
                 // heard; it stays.
                 if (!meshtastic && !channel.isPublic && state.ready) {
@@ -392,6 +396,11 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
                 { PersonHeader(current, state.here) }
             } else {
                 null
+            },
+            actions = {
+                if (state.conversations[person.prefix].orEmpty().isNotEmpty()) {
+                    DeleteThreadAction { viewModel.deleteThread(person) }
+                }
             },
             onBack = {
                 // Anything that arrived while it was open was read as it landed.

@@ -61,6 +61,9 @@
     <string name="join_no_room">The radio holds as many channels as it can. Leave one first.</string>
     <string name="channel_leave">Leave</string>
     <string name="channel_leave_armed">Leave — tap again</string>
+    <!-- Top bar of a conversation: deletes its messages; the person or channel stays -->
+    <string name="thread_delete">Delete</string>
+    <string name="thread_delete_armed">Delete messages — tap again</string>
 
     <!-- The radio\'s battery: volts, then roughly what they mean. -->
     <string name="battery">%1$.2f V, %2$s</string>

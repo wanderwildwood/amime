@@ -11,6 +11,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.annotation.StringRes
 import androidx.core.content.ContextCompat
@@ -181,10 +183,24 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
     private var radioPosition: GeoPoint? = null
     private var typedPosition: GeoPoint? = loadTypedPosition()
 
+    /**
+     * Where every transport callback is handled: the main thread.
+     *
+     * GATT callbacks arrive on a binder thread while sends, the clock and the screen work on
+     * the main one, and the store and both sessions keep plain state that two threads must
+     * not change at once. Posting keeps each callback's order; one that is already on the
+     * main thread runs at once.
+     */
+    private val main = Handler(Looper.getMainLooper())
+
+    private fun onMain(block: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) block() else main.post { block() }
+    }
+
     private val transport = BleTransport(
         context = application,
         listener = object : BleTransport.Listener {
-            override fun onReady() {
+            override fun onReady() = onMain {
                 _pairing.value = false
                 // The link is up; whether the radio will talk over it is the next question,
                 // and it is a different one.
@@ -193,20 +209,20 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
                 watchBattery()
             }
 
-            override fun onFrame(frame: ByteArray) = session.onFrame(frame)
+            override fun onFrame(frame: ByteArray) = onMain { session.onFrame(frame) }
 
-            override fun onDisconnected() {
+            override fun onDisconnected() = onMain {
                 handshakeWatch?.cancel()
                 batteryWatch?.cancel()
                 _connecting.value = null
                 store.onDisconnected()
             }
 
-            override fun onPairingRequired() {
+            override fun onPairingRequired() = onMain {
                 _pairing.value = true
             }
 
-            override fun onError(message: String) {
+            override fun onError(message: String) = onMain {
                 // Whatever it was, the phone is not in the middle of pairing any more, and
                 // it is not in the middle of connecting either. Leaving either line up would
                 // have the screen describing something that has already stopped happening.
@@ -601,12 +617,19 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
 
     fun markRead(channel: Channel) = store.markRead(channel.key)
 
+    /** Delete what was said with this person; they stay on the list. */
+    fun deleteThread(person: Person) = store.deleteThread(person.prefix)
+
+    /** Delete what was said on this channel; the channel stays. */
+    fun deleteThread(channel: Channel) = store.deleteThread(channel.key)
+
     /** Put away the last thing that went wrong, once it has been read. */
     fun dismissProblem() {
         _problem.value = null
     }
 
     override fun onCleared() {
+        main.removeCallbacksAndMessages(null)
         handshakeWatch?.cancel()
         ackWatch?.cancel()
         batteryWatch?.cancel()
@@ -626,37 +649,45 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
     private val mtTransport: MeshtasticBle = MeshtasticBle(
         context = application,
         listener = object : MeshtasticBle.Listener {
-            override fun onReady() {
+            override fun onReady() = onMain {
                 _pairing.value = false
                 watchForHandshake()
                 backend.start()
             }
 
-            override fun onRead(bytes: ByteArray) = mtSession.onRead(bytes)
+            override fun onRead(bytes: ByteArray) = onMain {
+                // The handshake is a stall timer on this radio: a node list long enough to
+                // take more than the limit is still the radio talking, so each answer before
+                // the end of the handshake gives it the whole limit again.
+                if (!state.value.ready && bytes.isNotEmpty() && handshakeWatch?.isActive == true) watchForHandshake()
+                mtSession.onRead(bytes)
+            }
 
-            override fun onFromNum() = mtSession.onFromNum()
+            override fun onFromNum() = onMain { mtSession.onFromNum() }
 
+            // Asked by the transport's watchdog, which already runs on the main thread, and
+            // answered at once: the transport needs the answer before it goes on.
             override fun onReadStalled(): Boolean = mtSession.onReadStalled()
 
-            override fun onDisconnected() {
+            override fun onDisconnected() = onMain {
                 handshakeWatch?.cancel()
                 _connecting.value = null
                 store.onDisconnected()
                 mtSession.onLinkDown()
             }
 
-            override fun onPairingRequired() {
+            override fun onPairingRequired() = onMain {
                 _pairing.value = true
             }
 
-            override fun onError(message: String) {
+            override fun onError(message: String) = onMain {
                 _pairing.value = false
                 _connecting.value = null
                 handshakeWatch?.cancel()
                 _problem.value = message
             }
 
-            override fun onOtherKind() {
+            override fun onOtherKind() = onMain {
                 // The service list is the final word: this one speaks MeshCore.
                 mtTransport.disconnect()
                 kind = RadioKind.MESHCORE
@@ -709,8 +740,8 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
             if (typedPosition == null) store.mtHere(radioPosition)
         }
 
-        override fun onChannel(index: Int, name: String, enabled: Boolean, primary: Boolean) =
-            store.mtChannel(index, name, enabled)
+        override fun onChannel(index: Int, name: String, enabled: Boolean, primary: Boolean, key: List<Byte>) =
+            store.mtChannel(index, name, enabled, key)
 
         override fun onChannelsLoaded() = store.mtChannelsLoaded()
 
@@ -731,7 +762,10 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 // A channel thread shows "name: words", so the sender's name goes in front.
                 val who = names[from] ?: "!%08x".format(from)
-                store.mtReceived(MtSession.channelKey(channel), "$who: $text", time, snr, hops?.let { it == 0 })
+                // Filed under the channel now in that slot; before the slot is read, under its
+                // number, and moved across when it is.
+                val key = state.value.channels.firstOrNull { it.index == channel }?.key ?: MtSession.channelKey(channel)
+                store.mtReceived(key, "$who: $text", time, snr, hops?.let { it == 0 })
             }
         }
 

@@ -99,7 +99,7 @@ private class Events : MtSession.Listener {
     override fun onReady(name: String, firmware: String) { log += "ready"; this.name = name }
     override fun onNode(node: MtNode) { nodes[node.num] = node }
     override fun onSelfPosition(latitude: Double, longitude: Double) { selfPosition = latitude to longitude }
-    override fun onChannel(index: Int, name: String, enabled: Boolean, primary: Boolean) { channels += Triple(index, name, enabled) }
+    override fun onChannel(index: Int, name: String, enabled: Boolean, primary: Boolean, key: List<Byte>) { channels += Triple(index, name, enabled) }
     override fun onChannelsLoaded() { log += "channels" }
     override fun onRegion(region: Int) { this.region = region }
     override fun onText(from: Long, channel: Int?, text: String, time: Long, snr: Float?, hops: Int?) {
@@ -399,6 +399,17 @@ class MtSessionTest {
         assertEquals(4, MtSession.keyOf(1).size)
         assertEquals(16, MtSession.channelKey(3).size)
         assertNotEquals(MtSession.channelKey(0), MtSession.channelKey(1))
+    }
+
+    @Test
+    fun a_channel_thread_follows_its_name_and_key_not_its_slot() {
+        val psk = okio.ByteString.of(1, 2, 3)
+        val key = MtSession.channelKey("Hikers", psk)
+        assertEquals(16, key.size)
+        assertEquals(key, MtSession.channelKey("Hikers", okio.ByteString.of(1, 2, 3)))
+        assertNotEquals(key, MtSession.channelKey("Hikers", okio.ByteString.of(1, 2, 4)))
+        assertNotEquals(key, MtSession.channelKey("Hiker", psk))
+        (0..7).forEach { assertNotEquals(MtSession.channelKey(it), key) }
     }
 
     private fun ack(from: Int, requestId: Int, error: Routing.Error): ByteArray = FromRadio(

@@ -243,13 +243,48 @@ class MeshStore(
         )
     }
 
-    fun mtChannel(index: Int, name: String, enabled: Boolean) = update {
+    /**
+     * One Meshtastic channel slot, filed under [key]: its name and key together, so a new
+     * channel put in an old slot starts a thread of its own instead of inheriting the old one's.
+     *
+     * Messages kept under the slot's number (from before threads were keyed this way, or that
+     * arrived before the slot was read) move into the channel now in that slot, once.
+     */
+    fun mtChannel(index: Int, name: String, enabled: Boolean, key: List<Byte>) = update {
         val others = channels.filterNot { it.index == index }
         if (!enabled) {
             copy(channels = others)
         } else {
-            copy(channels = (others + Channel(index, name, com.wanderwildwood.amime.meshtastic.MtSession.channelKey(index))).sortedBy { it.index })
+            val bySlot = com.wanderwildwood.amime.meshtastic.MtSession.channelKey(index)
+            val moved = conversations[bySlot]
+            val withChannel = copy(channels = (others + Channel(index, name, key)).sortedBy { it.index })
+            if (moved == null || bySlot == key) {
+                withChannel
+            } else {
+                val read = listOfNotNull(readUpTo[bySlot], readUpTo[key]).maxOrNull()
+                withChannel.copy(
+                    conversations = conversations.filterKeys { it != bySlot } +
+                        (key to (moved + conversations[key].orEmpty()).sortedBy { it.id }),
+                    readUpTo = readUpTo.filterKeys { it != bySlot }.let { if (read == null) it else it + (key to read) },
+                )
+            }
         }
+    }
+
+    /**
+     * Throw away one thread's messages, a person's or a channel's. The person or channel
+     * stays; only what was said goes, and a send still waiting has nothing left to settle.
+     */
+    fun deleteThread(key: List<Byte>) {
+        if (key !in state.conversations && key !in state.readUpTo) return
+        unanswered.removeAll { it.first == key }
+        unansweredOnChannels.removeAll { it.first == key }
+        awaiting.values.removeAll { it.first == key }
+        update { copy(
+            // filterKeys, not minus: a key is a List, and minus would take it as a list of keys.
+            conversations = conversations.filterKeys { it != key },
+            readUpTo = readUpTo.filterKeys { it != key },
+        ) }
     }
 
     fun mtChannelsLoaded() = update { copy(channelsLoaded = true) }
@@ -605,7 +640,10 @@ class MeshStore(
         }
     }
 
-    private companion object {
+    companion object {
+        /** How many messages a thread keeps; older ones are let go as new ones arrive. */
+        const val MAX_PER_THREAD = 500
+
         /**
          * As far as the attempt number is taken.
          *
@@ -614,11 +652,27 @@ class MeshStore(
          * the text is within two of the maximum. Three tries is where a person gives up
          * anyway, and the timestamp keeps each packet distinct regardless.
          */
-        const val MAX_ATTEMPT = 3
+        private const val MAX_ATTEMPT = 3
     }
 
     private inline fun update(block: MeshState.() -> MeshState) {
-        state = state.block()
+        state = capped(state.block())
         onChange(state)
+    }
+
+    /**
+     * The newest [MAX_PER_THREAD] messages of each thread, and no more.
+     *
+     * A busy channel adds a message every few minutes for as long as the radio is on, and the
+     * whole log is rewritten on every change; without a ceiling it grows until each write is
+     * slow and the file is large. The oldest go first.
+     */
+    private fun capped(s: MeshState): MeshState {
+        if (s.conversations.values.none { it.size > MAX_PER_THREAD }) return s
+        return s.copy(
+            conversations = s.conversations.mapValues { (_, thread) ->
+                if (thread.size > MAX_PER_THREAD) thread.takeLast(MAX_PER_THREAD) else thread
+            },
+        )
     }
 }
