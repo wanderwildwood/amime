@@ -379,10 +379,10 @@ class MtSettingsTest {
         val (radio, heard, s) = session()
         s.start()
         radio.written.clear()
-        assertTrue(s.setFixedPosition(35.5951, -82.5515))
+        assertTrue(s.setFixedPosition(30.1234, -40.5678))
         val sent = AdminMessage.ADAPTER.decode(radio.written.single().packet!!.decoded!!.payload).set_fixed_position!!
-        assertEquals(355951000, sent.latitude_i)
-        assertEquals(-825515000, sent.longitude_i)
+        assertEquals(301234000, sent.latitude_i)
+        assertEquals(-405678000, sent.longitude_i)
         s.onRead(routing(radio.written.single().packet!!.id, Routing.Error.NONE))
         assertTrue(heard.configs!!.position!!.fixed_position)
         radio.written.clear()

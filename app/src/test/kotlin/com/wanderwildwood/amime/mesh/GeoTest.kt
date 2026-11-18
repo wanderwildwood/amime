@@ -50,8 +50,8 @@ class GeoTest {
     @Test
     fun the_map_link_is_a_geo_uri_with_the_name_escaped() {
         assertEquals(
-            "geo:35.59510,-82.55150?q=35.59510,-82.55150(Ann%20B)",
-            Geo.geoUri(35.5951, -82.5515, "Ann B"),
+            "geo:30.12340,-40.56780?q=30.12340,-40.56780(Ann%20B)",
+            Geo.geoUri(30.1234, -40.5678, "Ann B"),
         )
     }
 }

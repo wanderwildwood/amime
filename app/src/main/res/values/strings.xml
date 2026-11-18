@@ -202,7 +202,7 @@
     <string name="mt_region_ru">Russia</string>
     <string name="mt_region_in">India</string>
     <string name="mt_position_title">Where you are</string>
-    <string name="mt_position_help">Degrees, for example 35.5951 and -82.5515. Used only to work out distances; it stays on this phone.</string>
+    <string name="mt_position_help">Degrees, for example 30.1234 and -40.5678. Used only to work out distances; it stays on this phone.</string>
     <string name="mt_position_lat">Latitude</string>
     <string name="mt_position_lon">Longitude</string>
     <string name="mt_open_maps">Open in maps</string>

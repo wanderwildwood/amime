@@ -78,7 +78,7 @@ private class FakeRadio(var firmware: String = "2.7.26.54e0d8d") : MtTransport {
                 num = ANN, last_heard = 1000, snr = 5.5f, hops_away = 1,
                 user = User(long_name = "Ann", short_name = "AN"),
                 device_metrics = DeviceMetrics(battery_level = 80),
-                position = Position(latitude_i = 355951000, longitude_i = -825515000),
+                position = Position(latitude_i = 301234000, longitude_i = -405678000),
             ),
         ),
         FromRadio(config_complete_id = configComplete),
@@ -168,8 +168,8 @@ class MtSessionTest {
         assertEquals(5.5f, ann.snr)
         assertEquals(1, ann.hops)
         assertEquals(1000L, ann.lastHeard)
-        assertEquals(35.5951, ann.latitude!!, 1e-6)
-        assertEquals(-82.5515, ann.longitude!!, 1e-6)
+        assertEquals(30.1234, ann.latitude!!, 1e-6)
+        assertEquals(-40.5678, ann.longitude!!, 1e-6)
     }
 
     @Test
@@ -256,7 +256,7 @@ class MtSessionTest {
                 from = bob, to = 0xFFFFFFFF.toInt(), id = 50,
                 decoded = Data(
                     portnum = PortNum.POSITION_APP,
-                    payload = Position(latitude_i = 355951000, longitude_i = -825515000).encodeByteString(),
+                    payload = Position(latitude_i = 301234000, longitude_i = -405678000).encodeByteString(),
                 ),
             ),
         ).encode()
