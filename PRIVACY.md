@@ -106,6 +106,7 @@ system log.
 The About's links open the source code (`github.com/wanderwildwood/amime`) and
 `wanderthe.dev` in whatever browser you have, its contact line opens your mail app with
 `email@wanderthe.dev` filled in, and the llama at its foot opens `square.link/u/AGu8oT10`.
+The Licences list links each library to its own project page, which opens in your browser.
 A person's position, when you choose to open it, goes to your map app as a `geo:` link. Each
 is a hand-off: this app does not fetch the page, and it learns nothing about whether you went
 there.
