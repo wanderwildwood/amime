@@ -48,6 +48,11 @@ with the same key could hold it, which means only this app. It is a lock, not a 
 
 Your conversations, in the app's own private storage, as a file of plain lines. Nowhere else. Each conversation keeps its newest 500 messages, and **Delete** at the top of a conversation removes its messages from the phone.
 
+One exception: if the file was ever left in a form this version cannot read (written by a later
+version, or damaged), it is moved aside, to `conversations.unreadable` or a numbered name beside
+it, and kept untouched rather than written over. Delete and the 500-message limit do not reach
+that copy. Clearing the app's storage in Android's settings, or uninstalling the app, removes it.
+
 Beside them, in the app's private settings: a position you typed in, if you did, whether the
 list of people is sorted nearest first, and whether dark mode is on. When Home is installed,
 the app reads Home's dark mode switch, a yes or no, and sends nothing to it.
