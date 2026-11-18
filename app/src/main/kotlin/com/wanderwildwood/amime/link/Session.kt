@@ -66,6 +66,15 @@ class Session(
          */
         fun onCliCommandDropped(from: List<Byte>) {}
 
+        /**
+         * The direct message sent [place]-th among those still unanswered (0 is the oldest)
+         * never reached the radio, so no answer will come for it.
+         */
+        fun onMessageNotSent(place: Int) {}
+
+        /** The same for a channel message. */
+        fun onChannelMessageNotSent(place: Int) {}
+
         /** A repeater or room server let us in. */
         fun onLoggedIn(login: Frame.LoginSucceeded) {}
 
@@ -167,7 +176,10 @@ class Session(
      * of that entry lost its answer somewhere — the link drops a frame it has given up on — so
      * it is let go rather than left to take the next answer that comes.
      */
-    private val inFlight = ArrayDeque<Awaiting>()
+    private val inFlight = ArrayDeque<Sending>()
+
+    /** A command waiting on its answer, with the frame it went in, so the link can say which one it lost. */
+    private class Sending(val awaiting: Awaiting, val frame: ByteArray)
 
     private sealed interface Awaiting {
         /** A direct message: answered by `Sent`. */
@@ -294,16 +306,37 @@ class Session(
     }
 
     private fun send(awaiting: Awaiting, frame: ByteArray) {
-        inFlight.addLast(awaiting)
+        inFlight.addLast(Sending(awaiting, frame))
         transport.send(frame)
+    }
+
+    /**
+     * The link never carried [frame]: it was down, the frame was too long for it, or the
+     * write was refused. No answer is coming, so the command waiting on it is let go now;
+     * left in the queue, it would take the answer to the next command of its kind.
+     */
+    fun onFrameLost(frame: ByteArray) {
+        val at = inFlight.indexOfFirst { it.frame === frame }
+        if (at < 0) return
+        val awaiting = inFlight[at].awaiting
+        // Which one of its kind it was, counted from the oldest, for a listener keeping its own queue.
+        val place = inFlight.take(at).count { it.awaiting == awaiting }
+        inFlight.removeAt(at)
+        when (awaiting) {
+            Awaiting.Message -> listener.onMessageNotSent(place)
+            Awaiting.ChannelMessage -> listener.onChannelMessageNotSent(place)
+            Awaiting.Contacts -> syncingContacts = false
+            is Awaiting.ChannelGet -> afterChannel(awaiting.index)
+            is Awaiting.ChannelSet, Awaiting.OtherOk, Awaiting.OtherSent -> Unit
+        }
     }
 
     /** The first command still waiting that [answers] could belong to, letting go of any ahead of it. */
     private fun settle(answers: (Awaiting) -> Boolean): Awaiting? {
-        val at = inFlight.indexOfFirst(answers)
+        val at = inFlight.indexOfFirst { answers(it.awaiting) }
         if (at < 0) return null
-        repeat(at) { lost(inFlight.removeFirst()) }
-        return inFlight.removeFirst()
+        repeat(at) { lost(inFlight.removeFirst().awaiting) }
+        return inFlight.removeFirst().awaiting
     }
 
     /** A command whose answer never came. Only a walk of the slots needs to go on regardless. */
@@ -496,7 +529,7 @@ class Session(
             is Frame.Failed -> {
                 // An error says nothing about what it answers, but answers come in order, so
                 // it belongs to the oldest command still waiting.
-                when (val whose = inFlight.removeFirstOrNull()) {
+                when (val whose = inFlight.removeFirstOrNull()?.awaiting) {
                     is Awaiting.ChannelGet -> afterChannel(whose.index)
                     is Awaiting.ChannelSet -> listener.onChannelSetFailed(whose.index, frame.code)
                     Awaiting.ChannelMessage -> listener.onChannelSendFailed(frame.code)

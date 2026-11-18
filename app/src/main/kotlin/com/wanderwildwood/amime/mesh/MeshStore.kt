@@ -191,11 +191,8 @@ class MeshStore(
         // it would say "Sending" until the app was closed.
         // The same for a direct message the radio never answered: and left in the queue, the
         // next connection's first answer would be matched to it instead of to its own send.
-        val stranded = unansweredOnChannels.toList() + unanswered.toList()
-        unansweredOnChannels.clear()
-        unanswered.clear()
+        strandUnanswered()
         beforeTheirChannel.clear()
-        stranded.forEach { setDelivery(it, Delivery.UNRESOLVED) }
         update {
             copy(
                 ready = false,
@@ -210,6 +207,14 @@ class MeshStore(
                 channelsLoaded = false,
             )
         }
+    }
+
+    /** Every send still waiting on the radio's answer: none is coming, and each can be sent again. */
+    private fun strandUnanswered() {
+        val stranded = unansweredOnChannels.toList() + unanswered.toList()
+        unansweredOnChannels.clear()
+        unanswered.clear()
+        stranded.forEach { setDelivery(it, Delivery.UNRESOLVED) }
     }
 
     /** Begin administering a repeater. The answer comes back over the air, so this waits. */
@@ -401,16 +406,33 @@ class MeshStore(
 
     // ---- what the radio says ----
 
-    override fun onReady(self: Frame.SelfInfo) = update {
-        // A MeshCore radio after a Meshtastic one: its people were the other radio's nodes,
-        // and its own contacts come right after this.
-        val wasMeshtastic = radio == RadioKind.MESHTASTIC
-        copy(
-            nodeName = self.name,
-            ready = true,
-            radio = RadioKind.MESHCORE,
-            people = if (wasMeshtastic) emptyList() else people,
-        )
+    override fun onReady(self: Frame.SelfInfo) {
+        // A new conversation with the radio: the session has forgotten every command it was
+        // waiting on, so whatever is still queued here would only take a new send's answer.
+        strandUnanswered()
+        update {
+            // A MeshCore radio after a Meshtastic one: its people were the other radio's nodes,
+            // and its own contacts come right after this.
+            val wasMeshtastic = radio == RadioKind.MESHTASTIC
+            copy(
+                nodeName = self.name,
+                ready = true,
+                radio = RadioKind.MESHCORE,
+                people = if (wasMeshtastic) emptyList() else people,
+            )
+        }
+    }
+
+    /** A direct message the link never carried: it waits to be sent again. */
+    override fun onMessageNotSent(place: Int) {
+        if (place !in unanswered.indices) return
+        setDelivery(unanswered.removeAt(place), Delivery.UNRESOLVED)
+    }
+
+    /** A channel message the link never carried. */
+    override fun onChannelMessageNotSent(place: Int) {
+        if (place !in unansweredOnChannels.indices) return
+        setDelivery(unansweredOnChannels.removeAt(place), Delivery.UNRESOLVED)
     }
 
     override fun onContact(contact: Frame.Contact) {

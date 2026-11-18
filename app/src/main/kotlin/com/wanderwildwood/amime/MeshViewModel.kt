@@ -211,6 +211,10 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
 
             override fun onFrame(frame: ByteArray) = onMain { session.onFrame(frame) }
 
+            // A frame the link never carried: the command waiting on it is let go, or it
+            // would take the answer to the next one.
+            override fun onFrameLost(frame: ByteArray) = onMain { session.onFrameLost(frame) }
+
             override fun onDisconnected() = onMain {
                 handshakeWatch?.cancel()
                 batteryWatch?.cancel()
@@ -543,12 +547,16 @@ class MeshViewModel(application: Application) : AndroidViewModel(application) {
         message: Message,
         now: Long = System.currentTimeMillis() / 1000,
     ) {
+        // With no radio to hand it to, nothing would go out; the row stays as it is, to be
+        // sent again once there is one.
+        if (!state.value.ready) return
         if (kind == RadioKind.MESHTASTIC) {
             // Its own packet id settles it, as the first send's did. The earlier id stays in
             // the outbox: a late answer to the first try settles this message just as well.
+            // The row first: a message deleted meanwhile is not sent at all.
             val until = System.currentTimeMillis() + MT_ACK_WAIT_MS
-            val packet = mtSession.sendText(MtSession.numOf(person.prefix), 0, message.text)
             store.mtResend(person.prefix, message.id, until) ?: return
+            val packet = mtSession.sendText(MtSession.numOf(person.prefix), 0, message.text)
             outbox[packet] = person.prefix to message.id
             return
         }

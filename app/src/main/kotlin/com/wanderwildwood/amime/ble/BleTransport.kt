@@ -72,6 +72,12 @@ class BleTransport(
          * and a status cannot be translated by anybody.
          */
         fun onError(message: String)
+
+        /**
+         * [frame], handed to [send], never reached the radio: the link was down, it was too
+         * long for the link, or the write was refused. Nothing will answer it.
+         */
+        fun onFrameLost(frame: ByteArray) {}
     }
 
     private var gatt: BluetoothGatt? = null
@@ -88,7 +94,10 @@ class BleTransport(
      * tested without a radio — so the timer lives here, where there is a Looper anyway.
      */
     private val queue: OperationQueue = OperationQueue(
-        onStartFailed = { fail(R.string.ble_refused) },
+        onStartFailed = { operation ->
+            fail(R.string.ble_refused)
+            if (operation is FrameWrite) listener.onFrameLost(operation.frame)
+        },
         onStarted = ::watchOperation,
     )
 
@@ -149,9 +158,13 @@ class BleTransport(
     override fun send(frame: ByteArray) {
         val characteristic = rx ?: run {
             fail(R.string.ble_not_connected)
+            listener.onFrameLost(frame)
             return
         }
-        val connection = gatt ?: return
+        val connection = gatt ?: run {
+            listener.onFrameLost(frame)
+            return
+        }
         // A value longer than the link will carry is not rejected by the stack; it is cut
         // down to the MTU and written, and what arrives at the radio is a frame that ends
         // mid-field. Refusing here is the only place this can be said rather than guessed
@@ -159,16 +172,30 @@ class BleTransport(
         val room = negotiatedMtu - ATT_HEADER
         if (negotiatedMtu > 0 && frame.size > room) {
             failCount(R.plurals.ble_frame_too_long, frame.size, frame.size, room)
+            listener.onFrameLost(frame)
             return
         }
         log { "send ${frame.size} bytes: ${frame.joinToString(" ") { "%02x".format(it) }}" }
-        queue.enqueue(OP_WRITE) {
-            @Suppress("DEPRECATION") // The Android 13 overload does not exist on the Kompakt's API 31.
-            run {
-                characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-                characteristic.value = frame
-                connection.writeCharacteristic(characteristic)
-            }
+        queue.enqueue(OP_WRITE, FrameWrite(frame, characteristic, connection))
+    }
+
+    /** The frame whose write is in flight, so a refused write can say which frame it was. */
+    @Volatile private var writing: ByteArray? = null
+
+    /** One frame's write, carrying the frame so that a write which fails can name it. */
+    private inner class FrameWrite(
+        val frame: ByteArray,
+        private val characteristic: BluetoothGattCharacteristic,
+        private val connection: BluetoothGatt,
+    ) : OperationQueue.Operation {
+        @Suppress("DEPRECATION") // The Android 13 overload does not exist on the Kompakt's API 31.
+        override fun start(): Boolean {
+            writing = frame
+            characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+            characteristic.value = frame
+            val started = connection.writeCharacteristic(characteristic)
+            if (!started) writing = null
+            return started
         }
     }
 
@@ -337,9 +364,13 @@ class BleTransport(
             status: Int,
         ) {
             log { "wrote status=$status" }
+            // Taken before completing: the next write starts inside completeCurrent.
+            val wrote = writing
             if (!queue.completeCurrent(OP_WRITE)) return
+            if (writing === wrote) writing = null
             if (status != BluetoothGatt.GATT_SUCCESS) {
                 fail(R.string.ble_write_failed, status)
+                wrote?.let(listener::onFrameLost)
             }
         }
 

@@ -384,7 +384,10 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
             canSend = state.ready,
             radio = state.radio,
             // A Meshtastic radio keeps no route of its own to forget, so it only sends again.
-            sendAgain = if (current.pathKnown && !meshtastic) {
+            // Not offered while no radio is ready: there is nothing to hand it to.
+            sendAgain = if (!state.ready) {
+                null
+            } else if (current.pathKnown && !meshtastic) {
                 R.string.message_send_again_new_route
             } else {
                 R.string.message_send_again

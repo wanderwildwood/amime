@@ -53,7 +53,37 @@ class MeshStoreTest {
     }
 
     @Test
+    fun `a send the link never carried waits to be sent again, and the next keeps its answer`() {
+        store.onContact(contact("ridge", key = 0x11))
+        store.onContact(contact("hollow", key = 0x22))
+        store.recordSent(ridge, "lost", 1)
+        store.recordSent(hollow, "carried", 2)
+        store.onMessageNotSent(0)
+        assertEquals(Delivery.UNRESOLVED, only(ridge).delivery)
+
+        store.onSent(sent(0x05), awaitingAck = true)
+        assertEquals(Delivery.AWAITING_ACK, only(hollow).delivery)
+        assertEquals(Delivery.UNRESOLVED, only(ridge).delivery)
+    }
+
+    @Test
+    fun `a new connection's first answer is not taken by a send from before it`() {
+        store.onContact(contact("ridge", key = 0x11))
+        store.onContact(contact("hollow", key = 0x22))
+        store.recordSent(ridge, "before", 1)
+        store.onReady(selfInfo("ridge-node"))
+        assertEquals(Delivery.UNRESOLVED, only(ridge).delivery)
+
+        store.recordSent(hollow, "after", 2)
+        store.onSent(sent(0x06), awaitingAck = true)
+        assertEquals(Delivery.AWAITING_ACK, only(hollow).delivery)
+        assertEquals(Delivery.UNRESOLVED, only(ridge).delivery)
+    }
+
+    @Test
     fun `deleting a thread with a send in flight leaves the next send its own answer`() {
+        store.onContact(contact("ridge", key = 0x11))
+        store.onContact(contact("hollow", key = 0x22))
         store.recordSent(ridge, "still going", 1)
         store.recordSent(hollow, "next", 2)
         store.deleteThread(ridge)

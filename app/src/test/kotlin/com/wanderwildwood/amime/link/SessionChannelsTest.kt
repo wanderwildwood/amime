@@ -41,6 +41,10 @@ class SessionChannelsTest {
         override fun onChannelSetFailed(index: Int, code: Int) { setFailures += index }
         override fun onFailed(code: Int) { failures += code }
         override fun onSent(sent: Frame.Sent, awaitingAck: Boolean) { this.sent += sent }
+        val notSent = mutableListOf<Int>()
+        val channelNotSent = mutableListOf<Int>()
+        override fun onMessageNotSent(place: Int) { notSent += place }
+        override fun onChannelMessageNotSent(place: Int) { channelNotSent += place }
     }
 
     @Before
@@ -179,6 +183,29 @@ class SessionChannelsTest {
         session.login(ByteArray(Sizes.PUB_KEY), "pw")
         session.onFrame(sent())
         assertTrue(heard.sent.isEmpty())
+    }
+
+    /** A frame the link never carried is let go, and the next send gets its own answer. */
+    @Test
+    fun `a lost frame's message is let go and named by its place`() {
+        session.sendMessage(ByteArray(Sizes.PUB_KEY_PREFIX), "first", 1)
+        session.sendChannelMessage(0, "hello", 1)
+        session.sendMessage(ByteArray(Sizes.PUB_KEY_PREFIX), "second", 2)
+        val second = transport.sent.last()
+
+        session.onFrameLost(second)
+        assertEquals(listOf(1), heard.notSent)
+        assertTrue(heard.channelNotSent.isEmpty())
+
+        session.onFrameLost(transport.sent[1])
+        assertEquals(listOf(0), heard.channelNotSent)
+
+        // A frame lost twice, or never tracked, is nobody's.
+        session.onFrameLost(second)
+        assertEquals(listOf(1), heard.notSent)
+
+        session.onFrame(sent())
+        assertEquals(1, heard.sent.size)
     }
 
     // ---- frames, shaped as the firmware shapes them ----
