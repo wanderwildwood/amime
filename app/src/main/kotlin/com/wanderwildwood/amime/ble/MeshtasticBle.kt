@@ -310,7 +310,15 @@ class MeshtasticBle(
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 listener.onRead(characteristic.value?.copyOf() ?: ByteArray(0))
             } else {
-                fail(R.string.ble_read_failed, status)
+                // The read is over but nothing came of it, so the session's drain would wait
+                // for good and nothing more would be read on this link. It is asked to read
+                // again, as after a stall, on the main thread where it lives; past its few
+                // tries the link is closed and said to be gone.
+                handler.post {
+                    if (this@MeshtasticBle.gatt !== gatt) return@post
+                    if (listener.onReadStalled()) log("read failed ($status), session asked to read again")
+                    else dropLink(R.string.ble_read_failed, status)
+                }
             }
         }
 
@@ -360,11 +368,11 @@ class MeshtasticBle(
     }
 
     /** An operation that never called back: closed and said to be gone, as in BleTransport. */
-    private fun dropLink(@StringRes reason: Int) {
+    private fun dropLink(@StringRes reason: Int, vararg values: Any) {
         val wasLinked = gatt != null
         disconnect()
         linked = false
-        fail(reason)
+        fail(reason, *values)
         if (wasLinked) listener.onDisconnected()
     }
 
