@@ -105,6 +105,9 @@ class MeshtasticBle(
 
     fun connect(device: BluetoothDevice) {
         log("connect: bond state ${device.bondState}")
+        // A link left from an earlier attempt is closed first: the radio takes one client at
+        // a time, and a GATT left open keeps its registration and its place on the radio.
+        disconnect()
         this.device = device
         retriesUsed = 0
         reconnecting = false
@@ -201,6 +204,15 @@ class MeshtasticBle(
     private val callback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             log("onConnectionStateChange status=$status newState=$newState inFlight=$inFlight depth=${queue.depth}")
+            val current = this@MeshtasticBle.gatt
+            if (current != null && current !== gatt) {
+                // A link replaced by a newer one: its news is not this link's, and clearing
+                // the queue or saying the link went would break the one now in use.
+                log("onConnectionStateChange from an earlier link, closed")
+                gatt.disconnect()
+                gatt.close()
+                return
+            }
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
                     linked = true
@@ -247,20 +259,20 @@ class MeshtasticBle(
             val service = gatt.getService(MtUuids.SERVICE)
             if (service == null) {
                 if (gatt.getService(NordicUart.SERVICE) != null) listener.onOtherKind()
-                else if (!retryStale(gatt, null)) failStale(R.string.ble_no_service)
+                else if (!retryStale(gatt, null)) failSetup(R.string.ble_no_service, stale = true)
                 return
             }
             toRadio = service.getCharacteristic(MtUuids.TO_RADIO)
             fromRadio = service.getCharacteristic(MtUuids.FROM_RADIO)
             val fromNum = service.getCharacteristic(MtUuids.FROM_NUM)
             if (toRadio == null || fromRadio == null || fromNum == null) {
-                if (!retryStale(gatt, null)) failStale(R.string.ble_missing_characteristic)
+                if (!retryStale(gatt, null)) failSetup(R.string.ble_missing_characteristic, stale = true)
                 return
             }
             gatt.setCharacteristicNotification(fromNum, true)
             val cccd = fromNum.getDescriptor(NordicUart.CCCD)
             if (cccd == null) {
-                fail(R.string.ble_no_cccd)
+                failSetup(R.string.ble_no_cccd)
                 return
             }
             queue.enqueue(OP_DESCRIPTOR) {
@@ -281,9 +293,9 @@ class MeshtasticBle(
             if (status == BluetoothGatt.GATT_SUCCESS) listener.onReady()
             else if (!retryStale(gatt, status)) {
                 if (GattCachePolicy.decide(status, retriesUsed) == GattCachePolicy.Verdict.GIVE_UP_WITH_HINT) {
-                    failStale(R.string.ble_notifications_refused, status)
+                    failSetup(R.string.ble_notifications_refused, status, stale = true)
                 } else {
-                    fail(R.string.ble_notifications_refused, status)
+                    failSetup(R.string.ble_notifications_refused, status)
                 }
             }
         }
@@ -354,6 +366,16 @@ class MeshtasticBle(
         linked = false
         fail(reason)
         if (wasLinked) listener.onDisconnected()
+    }
+
+    /**
+     * A link that cannot be set up is closed before saying why, as in BleTransport: left
+     * open, it holds the radio's one connection and the next attempt cannot get in.
+     */
+    private fun failSetup(@StringRes reason: Int, vararg values: Any, stale: Boolean = false) {
+        disconnect()
+        linked = false
+        if (stale) failStale(reason, *values) else fail(reason, *values)
     }
 
     private fun failStale(@StringRes reason: Int, vararg values: Any) {
