@@ -381,6 +381,11 @@ private fun Mesh(viewModel: MeshViewModel = viewModel()) {
                 }
             } else null,
             onConnect = viewModel::connect,
+            setAside = setAside,
+            onSaveSetAside = { name ->
+                savingAside = name
+                saveAside.launch("mesh-$name.txt")
+            },
         )
     } else if (person != null) {
         // The row as the radio last described it: its route can change while the thread is

@@ -43,6 +43,8 @@ fun RadiosScreen(
     onScan: () -> Unit,
     onOpenSettings: (() -> Unit)?,
     onConnect: (MeshViewModel.Radio) -> Unit,
+    setAside: List<String> = emptyList(),
+    onSaveSetAside: (String) -> Unit = {},
 ) {
     var aboutOpen by remember { mutableStateOf(false) }
 
@@ -137,6 +139,10 @@ fun RadiosScreen(
                     }
                 }
             }
+
+            // Here as well as on the main list: a log kept aside must be reachable by someone
+            // whose radio is lost, broken or not at hand.
+            setAside.forEach { SetAsideRow(it, onSaveSetAside) }
 
             if (onOpenSettings != null) {
                 OutlinedButtonMMD(

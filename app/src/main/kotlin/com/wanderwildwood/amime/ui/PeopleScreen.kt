@@ -562,7 +562,7 @@ fun PersonHeader(person: Person, here: GeoPoint?) {
  * untouched. Tapping it saves a copy through the save picker; nothing here deletes it.
  */
 @Composable
-private fun SetAsideRow(name: String, onSave: (String) -> Unit) {
+internal fun SetAsideRow(name: String, onSave: (String) -> Unit) {
     BorderedRow(
         title = stringResource(R.string.aside_row),
         line = stringResource(R.string.aside_row_line, name),
