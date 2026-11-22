@@ -258,6 +258,8 @@ For updates without doing this by hand, add this repository to
 **The application id is settled** — updates install over what you have, keeping anything the
 app has stored.
 
+Questions, ideas, or just saying hello: the wander the dev Discord, <https://discord.gg/UMW8yJg7dQ>
+
 ## License
 
 GPL-3.0-only. MeshCore itself is MIT, and is not vendored here — only its protocol is
